@@ -2,7 +2,7 @@ import os
 
 import httpx
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -13,6 +13,9 @@ from admin_ui.chroma_client import (
     list_collections,
     query_collection,
     get_chunks,
+    get_collection_info,
+    clear_collection,
+    delete_collection,
 )
 from admin_ui.config import settings
 
@@ -48,6 +51,56 @@ async def reindex(_token: str = Depends(verify_token)):
     async with httpx.AsyncClient(timeout=600.0) as client:
         resp = await client.post(f"{settings.indexer_api_url}/reindex")
     return JSONResponse(content=resp.json())
+
+
+@app.get("/api/collections")
+async def api_list_collections(_token: str = Depends(verify_token)):
+    collections = list_collections()
+    result = []
+    for name in collections:
+        info = get_collection_info(name)
+        if info:
+            result.append(info)
+    return JSONResponse(content={"collections": result})
+
+
+@app.get("/api/collections/{name}")
+async def api_collection_info(
+    name: str = Path(...),
+    _token: str = Depends(verify_token),
+):
+    info = get_collection_info(name)
+    if info is None:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    return JSONResponse(content=info)
+
+
+@app.post("/api/collections/{name}/clear")
+async def api_clear_collection(
+    name: str = Path(...),
+    _token: str = Depends(verify_token),
+):
+    try:
+        deleted = clear_collection(name)
+        return JSONResponse(
+            content={"status": "success", "collection": name, "deleted_chunks": deleted}
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/collections/{name}/delete")
+async def api_delete_collection(
+    name: str = Path(...),
+    _token: str = Depends(verify_token),
+):
+    try:
+        delete_collection(name)
+        return JSONResponse(
+            content={"status": "success", "message": f"Collection {name} deleted"}
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/api/search")

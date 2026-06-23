@@ -50,7 +50,12 @@ def get_collection_count() -> int | None:
 
 def list_collections() -> list[str]:
     try:
-        return [c.name for c in get_client().list_collections()]
+        # ChromaDB >= 0.6.0 returns list of collection names (strings)
+        collections = get_client().list_collections()
+        if collections and isinstance(collections[0], str):
+            return collections
+        # Fallback for older ChromaDB versions returning collection objects
+        return [c.name for c in collections]
     except Exception:
         return []
 
@@ -75,3 +80,27 @@ def get_chunks(skip: int = 0, limit: int = 20, where: dict | None = None):
         offset=skip,
         include=["documents", "metadatas"],
     )
+
+
+def get_collection_info(name: str) -> dict | None:
+    try:
+        collection = get_client().get_collection(name)
+        return {
+            "name": name,
+            "count": collection.count(),
+        }
+    except Exception:
+        return None
+
+
+def clear_collection(name: str) -> int:
+    collection = get_client().get_collection(name)
+    all_ids = collection.get(include=[])["ids"]
+    if all_ids:
+        collection.delete(ids=all_ids)
+    return len(all_ids)
+
+
+def delete_collection(name: str) -> bool:
+    get_client().delete_collection(name)
+    return True

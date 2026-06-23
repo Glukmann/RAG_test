@@ -79,6 +79,35 @@ button:hover { background: #1d4ed8; }
 
 button:disabled { opacity: 0.6; cursor: not-allowed; }
 
+button.btn-warning {
+  background: #d97706;
+}
+
+button.btn-warning:hover {
+  background: #b45309;
+}
+
+button.btn-danger {
+  background: var(--danger);
+}
+
+button.btn-danger:hover {
+  background: #b91c1c;
+}
+
+button.btn-small {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  margin-right: 0.5rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
 input[type="text"], select {
   padding: 0.5rem;
   border: 1px solid var(--border);

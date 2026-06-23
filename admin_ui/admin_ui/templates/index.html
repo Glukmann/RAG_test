@@ -25,6 +25,39 @@
   <pre id="log"></pre>
 </div>
 
+<div class="card">
+  <h2>Collection Management</h2>
+  <p>Current collection: <code>{{ collection }}</code> ({{ count if count is not none else "N/A" }} chunks)</p>
+
+  <div class="actions">
+    <button class="btn-warning" onclick="clearCollection('{{ collection }}')">Clear current collection</button>
+    <button class="btn-danger" onclick="deleteCollection('{{ collection }}')">Delete current collection</button>
+  </div>
+
+  <h3>All collections</h3>
+  <table id="collectionsTable">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Chunks</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in collections %}
+      <tr>
+        <td><code>{{ c }}</code></td>
+        <td id="count-{{ loop.index }}">—</td>
+        <td>
+          <button class="btn-small btn-warning" onclick="clearCollection('{{ c }}')">Clear</button>
+          <button class="btn-small btn-danger" onclick="deleteCollection('{{ c }}')">Delete</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
 <script>
 const logEl = document.getElementById('log');
 const btn = document.getElementById('reindexBtn');
@@ -61,5 +94,63 @@ async function startReindex() {
     btn.disabled = false;
   }
 }
+
+async function apiPost(path) {
+  const token = getToken();
+  if (!token) {
+    alert('No token found. Please access this page with ?token=YOUR_TOKEN');
+    return null;
+  }
+  const resp = await fetch(`${path}?token=${token}`, { method: 'POST' });
+  if (!resp.ok) {
+    const err = await resp.json();
+    throw new Error(err.detail || resp.statusText);
+  }
+  return resp.json();
+}
+
+async function clearCollection(name) {
+  if (!confirm(`Clear all chunks from collection "${name}"?`)) return;
+  try {
+    const data = await apiPost(`/api/collections/${encodeURIComponent(name)}/clear`);
+    alert(`Cleared ${data.deleted_chunks} chunks from "${name}"`);
+    window.location.reload();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function deleteCollection(name) {
+  if (!confirm(`Delete collection "${name}" entirely? This cannot be undone.`)) return;
+  try {
+    await apiPost(`/api/collections/${encodeURIComponent(name)}/delete`);
+    alert(`Collection "${name}" deleted`);
+    window.location.reload();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function loadCollectionCounts() {
+  const token = getToken();
+  if (!token) return;
+  try {
+    const resp = await fetch(`/api/collections?token=${token}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const rows = document.querySelectorAll('#collectionsTable tbody tr');
+    rows.forEach(row => {
+      const nameCell = row.querySelector('td:first-child code');
+      const countCell = row.querySelector('td:nth-child(2)');
+      if (!nameCell || !countCell) return;
+      const found = data.collections.find(c => c.name === nameCell.textContent);
+      countCell.textContent = found ? found.count : '—';
+    });
+  } catch (err) {
+    console.error('Failed to load collection counts:', err);
+  }
+}
+
+loadCollectionCounts();
 </script>
 {% endblock %}
