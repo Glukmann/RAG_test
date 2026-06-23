@@ -62,3 +62,6 @@ knowledge/
 
 # Local MCP virtualenv
 .venv-mcp/
+
+# Source documentation folders (PDFs, DOCs — not for Docker build)
+01_RslDoc/
