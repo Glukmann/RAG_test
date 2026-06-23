@@ -80,7 +80,7 @@ async def chunks_page(
     doc_type: str | None = Query(None),
     source: str | None = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     token: str = Depends(verify_token),
 ):
     where: dict | None = {}

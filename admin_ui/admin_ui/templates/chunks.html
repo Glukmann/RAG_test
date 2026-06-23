@@ -74,7 +74,7 @@ document.getElementById('filterForm').addEventListener('submit', function(e) {
 (function() {
   const token = getToken();
   const skip = {{ skip | default(0) }};
-  const limit = {{ limit | default(20) }};
+  const limit = {{ limit | default(50) }};
   const docType = '{{ doc_type or '' }}';
   const source = '{{ source or '' }}';
 
