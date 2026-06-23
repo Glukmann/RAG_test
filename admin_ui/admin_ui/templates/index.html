@@ -26,9 +26,12 @@
 </div>
 
 <script>
-const token = new URLSearchParams(window.location.search).get('token');
 const logEl = document.getElementById('log');
 const btn = document.getElementById('reindexBtn');
+
+function getToken() {
+  return localStorage.getItem('rag_admin_token') || '';
+}
 
 function appendLog(line) {
   logEl.textContent += line + '\n';
@@ -36,6 +39,12 @@ function appendLog(line) {
 }
 
 async function startReindex() {
+  const token = getToken();
+  if (!token) {
+    appendLog('Error: No token found. Please access this page with ?token=YOUR_TOKEN');
+    return;
+  }
+
   btn.disabled = true;
   logEl.textContent = '';
   appendLog('Starting reindex...');

@@ -18,9 +18,17 @@
 </div>
 
 <script>
-const token = new URLSearchParams(window.location.search).get('token');
+function getToken() {
+  return localStorage.getItem('rag_admin_token') || '';
+}
 
 async function runSearch() {
+  const token = getToken();
+  if (!token) {
+    alert('No token found. Please access with ?token=YOUR_TOKEN');
+    return false;
+  }
+
   const q = document.getElementById('query').value;
   const docType = document.getElementById('docType').value;
   const resultsEl = document.getElementById('results');

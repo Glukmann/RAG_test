@@ -5,11 +5,10 @@
 {% block content %}
 <div class="card">
   <h2>Browse chunks</h2>
-  <form method="get">
-    <input type="hidden" name="token" value="{{ token }}">
+  <form method="get" id="filterForm">
     <label>
       doc_type
-      <select name="doc_type">
+      <select name="doc_type" id="docTypeSelect">
         <option value="">all</option>
         <option value="docs" {% if doc_type == 'docs' %}selected{% endif %}>docs</option>
         <option value="code_examples" {% if doc_type == 'code_examples' %}selected{% endif %}>code_examples</option>
@@ -17,7 +16,7 @@
     </label>
     <label>
       source
-      <input type="text" name="source" value="{{ source or '' }}" placeholder="path substring">
+      <input type="text" name="source" id="sourceInput" value="{{ source or '' }}" placeholder="path substring">
     </label>
     <button type="submit">Filter</button>
   </form>
@@ -43,15 +42,55 @@
       {% endfor %}
     </tbody>
   </table>
-  <div class="pagination">
-    {% if skip > 0 %}
-    <a href="/chunks?token={{ token }}&doc_type={{ doc_type or '' }}&source={{ source or '' }}&skip={{ max(skip - limit, 0) }}&limit={{ limit }}">← Previous</a>
-    {% endif %}
-    <span>Offset {{ skip }}, limit {{ limit }}</span>
-    <a href="/chunks?token={{ token }}&doc_type={{ doc_type or '' }}&source={{ source or '' }}&skip={{ skip + limit }}&limit={{ limit }}">Next →</a>
-  </div>
+  <div class="pagination" id="pagination"></div>
   {% else %}
   <p>No chunks found.</p>
   {% endif %}
 </div>
+
+<script>
+function getToken() {
+  return localStorage.getItem('rag_admin_token') || '';
+}
+
+// Auto-add token to form submission
+document.getElementById('filterForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const token = getToken();
+  if (!token) {
+    alert('No token found. Please access with ?token=YOUR_TOKEN');
+    return;
+  }
+  const form = e.target;
+  const url = new URL(form.action || window.location.pathname, window.location.origin);
+  url.searchParams.set('token', token);
+  url.searchParams.set('doc_type', document.getElementById('docTypeSelect').value);
+  const source = document.getElementById('sourceInput').value;
+  if (source) url.searchParams.set('source', source);
+  window.location.href = url.toString();
+});
+
+// Build pagination links with token
+(function() {
+  const token = getToken();
+  const skip = {{ skip | default(0) }};
+  const limit = {{ limit | default(20) }};
+  const docType = '{{ doc_type or '' }}';
+  const source = '{{ source or '' }}';
+
+  if (!token) return;
+
+  const pagination = document.getElementById('pagination');
+  if (!pagination) return;
+
+  let html = '';
+  if (skip > 0) {
+    const prevSkip = Math.max(skip - limit, 0);
+    html += `<a href="/chunks?token=${token}&doc_type=${docType}&source=${source}&skip=${prevSkip}&limit=${limit}">← Previous</a>`;
+  }
+  html += `<span>Offset ${skip}, limit ${limit}</span>`;
+  html += `<a href="/chunks?token=${token}&doc_type=${docType}&source=${source}&skip=${skip + limit}&limit=${limit}">Next →</a>`;
+  pagination.innerHTML = html;
+})();
+</script>
 {% endblock %}

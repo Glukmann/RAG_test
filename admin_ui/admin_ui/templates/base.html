@@ -10,13 +10,24 @@
   <header>
     <h1>RAG Admin UI</h1>
     <nav>
-      <a href="/?token={{ token }}">Dashboard</a>
-      <a href="/chunks?token={{ token }}">Chunks</a>
-      <a href="/search?token={{ token }}">Search</a>
+      <a href="/">Dashboard</a>
+      <a href="/chunks">Chunks</a>
+      <a href="/search">Search</a>
     </nav>
   </header>
   <main>
     {% block content %}{% endblock %}
   </main>
+
+  <script>
+  // Auto-save token from URL to localStorage
+  (function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) {
+      localStorage.setItem('rag_admin_token', token);
+    }
+  })();
+  </script>
 </body>
 </html>
