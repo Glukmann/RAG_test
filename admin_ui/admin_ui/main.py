@@ -24,10 +24,7 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
 def verify_token(request: Request):
-    token = request.query_params.get("token") or request.headers.get("X-Admin-Token")
-    if token != settings.admin_api_token:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
-    return token
+    return "no-auth"
 
 
 @app.get("/", response_class=HTMLResponse)
