@@ -1,0 +1,107 @@
+#!/bin/bash
+set -e
+
+# Скрипт развёртывания RAG-системы на Ubuntu-сервере с Docker.
+# Запускать от имени пользователя с правами docker (не root).
+
+PROJECT_DIR="${HOME}/rag"
+REPO_URL="https://github.com/Glukmann/RAG_test.git"
+
+# --- Проверка зависимостей ---
+command -v docker >/dev/null 2>&1 || { echo "Docker не найден. Установите Docker и Docker Compose plugin."; exit 1; }
+command -v git >/dev/null 2>&1 || { echo "Git не найден. Установите: sudo apt-get install git"; exit 1; }
+
+# --- Клонирование или обновление проекта ---
+if [ -d "${PROJECT_DIR}/.git" ]; then
+    echo "Проект уже существует, обновляем..."
+    cd "${PROJECT_DIR}"
+    git pull origin main
+else
+    echo "Клонируем проект..."
+    git clone "${REPO_URL}" "${PROJECT_DIR}"
+    cd "${PROJECT_DIR}"
+fi
+
+# --- Создание .env ---
+if [ ! -f ".env" ]; then
+    echo "Создаём .env из шаблона..."
+    cp .env.example .env
+
+    # Генерация случайных токенов
+    CHROMA_TOKEN="$(openssl rand -hex 32)"
+    ADMIN_TOKEN="$(openssl rand -hex 32)"
+    MCP_TOKEN="$(openssl rand -hex 32)"
+
+    sed -i "s|^CHROMA_TOKEN=.*|CHROMA_TOKEN=${CHROMA_TOKEN}|" .env
+    sed -i "s|^ADMIN_API_TOKEN=.*|ADMIN_API_TOKEN=${ADMIN_TOKEN}|" .env
+    sed -i "s|^MCP_AUTH_TOKEN=.*|MCP_AUTH_TOKEN=${MCP_TOKEN}|" .env
+
+    echo ""
+    echo "=== Сгенерированы токены (сохраните их) ==="
+    echo "CHROMA_TOKEN: ${CHROMA_TOKEN}"
+    echo "ADMIN_API_TOKEN: ${ADMIN_TOKEN}"
+    echo "MCP_AUTH_TOKEN: ${MCP_TOKEN}"
+    echo "============================================"
+    echo ""
+else
+    echo ".env уже существует, пропускаем генерацию токенов."
+fi
+
+# --- Запуск сервисов ---
+echo "Запускаем Docker Compose..."
+docker compose down 2>/dev/null || true
+docker compose up --build -d
+
+# --- Проверка здоровья ---
+echo "Ожидаем запуска сервисов..."
+sleep 15
+
+HEALTH_MCP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8002/health || true)
+HEALTH_CHROMA=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/v1/heartbeat || true)
+
+echo "MCP health: ${HEALTH_MCP}"
+echo "ChromaDB health: ${HEALTH_CHROMA}"
+
+if [ "${HEALTH_MCP}" != "200" ] || [ "${HEALTH_CHROMA}" != "200" ]; then
+    echo "ВНИМАНИЕ: один из сервисов не отвечает. Смотрите логи: docker compose logs -f"
+    exit 1
+fi
+
+# --- Настройка автозапуска через systemd ---
+echo "Настраиваем автозапуск через systemd..."
+
+mkdir -p "${HOME}/.config/systemd/user"
+
+cat > "${HOME}/.config/systemd/user/rag.service" <<EOF
+[Unit]
+Description=RAG ChromaDB services
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=${PROJECT_DIR}
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user daemon-reload
+systemctl --user enable rag.service
+systemctl --user start rag.service
+
+echo ""
+echo "=== Деплой завершён ==="
+echo "ChromaDB API: http://<server-ip>:8000"
+echo "Admin UI:      http://<server-ip>:8080?token=<ADMIN_API_TOKEN>"
+echo "MCP Server:    http://<server-ip>:8002/mcp"
+echo ""
+echo "Для подключения Kimi Code на клиентской машине:"
+echo "  kimi mcp add --transport http chroma-rag http://<server-ip>:8002/mcp \\"
+echo "    --header \"Authorization: Bearer <MCP_AUTH_TOKEN>\""
+echo ""
+echo "Логи: docker compose logs -f"
