@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "chroma-rag": {
+      "url": "http://localhost:8002/mcp",
+      "headers": {
+        "Authorization": "Bearer change-me-to-a-secure-mcp-token"
+      }
+    }
+  }
+}
