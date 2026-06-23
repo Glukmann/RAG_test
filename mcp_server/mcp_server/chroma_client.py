@@ -4,7 +4,7 @@ import chromadb
 from chromadb.config import Settings as ChromaSettings
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
-from mcp_gateway.config import settings
+from mcp_server.config import settings
 
 _client: chromadb.ClientAPI | None = None
 _collection: Any = None

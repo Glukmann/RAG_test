@@ -67,6 +67,38 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  mcp-server:
+    build: ./mcp_server
+    container_name: rag_mcp_server
+    env_file: .env
+    environment:
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=3000
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - CHROMA_TOKEN=${CHROMA_TOKEN}
+      - CHROMA_COLLECTION=${CHROMA_COLLECTION:-lang_docs}
+      - SENTENCE_TRANSFORMER_MODEL=${SENTENCE_TRANSFORMER_MODEL:-all-MiniLM-L6-v2}
+    expose:
+      - "3000"
+    ports:
+      - "${MCP_PORT:-8002}:3000"
+    volumes:
+      - model-cache:/root/.cache/chroma/onnx_models
+    networks:
+      - rag-network
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
 volumes:
   chroma-data:
   git-sources:

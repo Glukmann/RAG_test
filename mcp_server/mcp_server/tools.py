@@ -1,4 +1,4 @@
-from mcp_gateway.chroma_client import query_collection
+from mcp_server.chroma_client import query_collection
 
 
 def search_docs(query: str, doc_type: str | None = None, n_results: int = 5) -> dict:
@@ -7,7 +7,6 @@ def search_docs(query: str, doc_type: str | None = None, n_results: int = 5) -> 
 
 
 def search_api_reference(query: str, n_results: int = 5) -> dict:
-    # Prioritize code chunks; exact matches are handled by the embedding model.
     return query_collection(
         query,
         n_results=n_results,

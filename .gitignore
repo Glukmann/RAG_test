@@ -53,3 +53,12 @@ logs/
 
 # Model cache
 models/
+
+# Kimi Code local MCP config with secrets
+.kimi/mcp.json
+
+# Local knowledge git repository (separate remote)
+knowledge/
+
+# Local MCP virtualenv
+.venv-mcp/
