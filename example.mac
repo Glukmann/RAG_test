@@ -1,0 +1,1 @@
+foo(x) := block([y], y: x + 1)$
