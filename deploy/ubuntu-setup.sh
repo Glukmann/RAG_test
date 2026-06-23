@@ -11,6 +11,17 @@ REPO_URL="https://github.com/Glukmann/RAG_test.git"
 command -v docker >/dev/null 2>&1 || { echo "Docker не найден. Установите Docker и Docker Compose plugin."; exit 1; }
 command -v git >/dev/null 2>&1 || { echo "Git не найден. Установите: sudo apt-get install git"; exit 1; }
 
+if ! docker info >/dev/null 2>&1; then
+    echo ""
+    echo "ОШИБКА: текущий пользователь не имеет прав доступа к Docker."
+    echo "Выполните следующие команды и перезапустите скрипт:"
+    echo ""
+    echo "  sudo usermod -aG docker \$USER"
+    echo "  newgrp docker"
+    echo ""
+    exit 1
+fi
+
 # --- Клонирование или обновление проекта ---
 if [ -d "${PROJECT_DIR}/.git" ]; then
     echo "Проект уже существует, обновляем..."
