@@ -65,16 +65,31 @@ docker compose up --build -d
 
 # --- Проверка здоровья ---
 echo "Ожидаем запуска сервисов..."
-sleep 15
 
-HEALTH_MCP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8002/health || true)
-HEALTH_CHROMA=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/v1/heartbeat || true)
+for i in $(seq 1 30); do
+    HEALTH_MCP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8002/health || true)
+    HEALTH_CHROMA=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/v1/heartbeat || true)
 
-echo "MCP health: ${HEALTH_MCP}"
-echo "ChromaDB health: ${HEALTH_CHROMA}"
+    echo "Попытка $i: MCP=${HEALTH_MCP}, ChromaDB=${HEALTH_CHROMA}"
+
+    if [ "${HEALTH_MCP}" = "200" ] && [ "${HEALTH_CHROMA}" = "200" ]; then
+        echo "Все сервисы доступны."
+        break
+    fi
+
+    sleep 2
+done
 
 if [ "${HEALTH_MCP}" != "200" ] || [ "${HEALTH_CHROMA}" != "200" ]; then
-    echo "ВНИМАНИЕ: один из сервисов не отвечает. Смотрите логи: docker compose logs -f"
+    echo ""
+    echo "ВНИМАНИЕ: один из сервисов не отвечает."
+    echo "Логи ChromaDB:"
+    docker compose logs --tail=30 chromadb
+    echo ""
+    echo "Логи MCP:"
+    docker compose logs --tail=30 mcp-server
+    echo ""
+    echo "Для постоянного мониторинга: docker compose logs -f"
     exit 1
 fi
 
