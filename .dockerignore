@@ -1,0 +1,53 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.env
+.venv/
+env/
+venv/
+.venv-mcp/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ChromaDB data
+chroma-data/
+
+# Logs
+logs/
+*.log
+
+# Model cache
+models/
+
+# Kimi Code local MCP config with secrets
+.kimi/mcp.json
+
+# Source documentation folders (PDFs, DOCs, sources — not for Docker build)
+01_RslDoc/
+03_MacDir/
+06_ToolsDoc/
+knowledge/
+
+# Local knowledge git repository (separate remote)
+knowledge/
+
+# Scripts that generate docs (run locally)
+scripts/

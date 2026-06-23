@@ -66,3 +66,4 @@ knowledge/
 # Source documentation folders (PDFs, DOCs, sources — not for Docker build or Git)
 01_RslDoc/
 03_MacDir/
+06_ToolsDoc/
