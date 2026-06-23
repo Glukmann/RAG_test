@@ -7,6 +7,16 @@ set -e
 PROJECT_DIR="${HOME}/rag"
 REPO_URL="https://github.com/Glukmann/RAG_test.git"
 
+# --- Открытие портов в фаерволе ---
+if command -v ufw >/dev/null 2>&1; then
+    echo "Открываем порты в ufw..."
+    sudo ufw allow 8000/tcp >/dev/null 2>&1 || true
+    sudo ufw allow 8002/tcp >/dev/null 2>&1 || true
+    sudo ufw allow 8080/tcp >/dev/null 2>&1 || true
+    sudo ufw reload >/dev/null 2>&1 || true
+    echo "Порты открыты в ufw."
+fi
+
 # --- Проверка зависимостей ---
 command -v docker >/dev/null 2>&1 || { echo "Docker не найден. Установите Docker и Docker Compose plugin."; exit 1; }
 command -v git >/dev/null 2>&1 || { echo "Git не найден. Установите: sudo apt-get install git"; exit 1; }
