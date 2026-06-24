@@ -1,0 +1,538 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+PDF → Markdown конвертер для RSL документации (v5).
+Ключевые улучшения:
+- Удаление дублирующихся/пустых секций (оглавление-заголовки без тела).
+- Улучшенное определение границ оглавления.
+- Исправленный split для процедур/функций с переносом строки.
+- Поддержка DLM-классов (IABS...).
+"""
+
+import os
+import re
+import fitz
+
+PDF_DIR = "/Users/lipanovav/rag/06_ToolsDoc"
+OUT_DIR = "/Users/lipanovav/rag/knowledge"
+
+os.makedirs(OUT_DIR, exist_ok=True)
+
+# ── Утилиты чистки ─────────────────────────────────────────────────────────
+COPYRIGHT_RE = re.compile(r'^\s*© АО Эр-Стайл Софтлаб,\s*\d+\s*–\s*\d+\s*$', re.MULTILINE)
+MODULE_RE = re.compile(r'^\s*Модуль\s+\w+.*$', re.MULTILINE)
+PAGE_NUM_RE = re.compile(r'^\s*\d+\s*$', re.MULTILINE)
+TOC_LINE_RE = re.compile(r'\.{3,}.*\d+\s*$', re.MULTILINE)
+TOC_HEADER_RE = re.compile(r'^\s*Оглавление\s*\d*\s*$', re.MULTILINE)
+
+def clean_page(text: str) -> str:
+    lines = text.splitlines()
+    out = []
+    # Find non-empty lines to detect page headers
+    non_empty = [(i, line.strip()) for i, line in enumerate(lines) if line.strip()]
+    to_remove = set()
+    if len(non_empty) >= 2:
+        first_idx, first_line = non_empty[0]
+        second_idx, second_line = non_empty[1]
+        if HEADING_RE.match(first_line) and (PAGE_NUM_RE.match(second_line) or COPYRIGHT_RE.match(second_line) or MODULE_RE.match(second_line)):
+            to_remove.add(first_idx)
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if i in to_remove:
+            continue
+        if COPYRIGHT_RE.match(s) or MODULE_RE.match(s) or PAGE_NUM_RE.match(s):
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
+def extract_raw(path: str) -> str:
+    doc = fitz.open(path)
+    parts = [clean_page(page.get_text()) for page in doc if page.get_text()]
+    doc.close()
+    return "\n".join(parts)
+
+
+def remove_toc_lines(text: str) -> str:
+    lines = text.splitlines()
+    out = []
+    for i, line in enumerate(lines):
+        if TOC_LINE_RE.search(line) or TOC_HEADER_RE.match(line.strip()):
+            # Remove preceding blank lines and heading lines that belong to this TOC entry
+            while out and out[-1].strip() == '':
+                out.pop()
+            while out and out[-1].strip() != '':
+                out.pop()
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
+# ── Удаление оглавления ─────────────────────────────────────────────────────
+TOC_STOP_PATTERNS = [
+    re.compile(r'^\s*Введение\s*$', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*ПРЕДИСЛОВИЕ\s*$', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*Introduction\s*$', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*Особенности\s+реализации\b', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*Технологическая\s+модель\b', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*Общие\s+положения\b', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*Работа\s+с\s+DLM\b', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*Описание\s+инструмента\b', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*Элементы\s+языка\b', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*Инструмент\s+записи\b', re.MULTILINE | re.IGNORECASE),
+    re.compile(r'^\s*Редактор\s+ресурсов\b', re.MULTILINE | re.IGNORECASE),
+]
+
+HEADING_RE = re.compile(
+    r'^(Пакет|Константы|Функции|Процедуры|Классы|Виды|Типы|Статусы|Происхождение|Оглавление|Примечание|'
+    r'Структура|Методы|Свойства|Параметры|Возвращаемое|Пример|Описание|Содержание|Введение|Introduction|'
+    r'Общие|Технологическая|Настройка|Работа|Инструмент|Редактор|Элементы|Служебные|Имена|Область|'
+    r'Комментарии|Объекты|Типы|Переменные|Символические|Скалярные|Объектные|Выражения|Синтаксис|'
+    r'Семантика|Структура|Загрузка|Директива|Конструкции|Пустая|Условная|Инструкция|Оператор|'
+    r'Функция|Процедура|Класс|Приложение|Интерфейсные|Классы|Прочие|Интерфейс)\b',
+    re.MULTILINE
+)
+
+def is_heading(line: str) -> bool:
+    return bool(HEADING_RE.match(line.strip()))
+
+
+def strip_toc(text: str) -> str:
+    for pat in TOC_STOP_PATTERNS:
+        for m in pat.finditer(text):
+            pos = m.start()
+            if pos >= len(text) * 0.5:
+                continue
+            tail = text[pos:pos + 800]
+            tail_lines = [l.strip() for l in tail.splitlines()[:15] if l.strip()]
+            for tl in tail_lines[1:]:
+                if len(tl) > 40 and not is_heading(tl):
+                    return text[pos:]
+    return text
+
+
+# ── Вспомогательные функции форматирования ─────────────────────────────────
+def convert_bullets(text: str) -> str:
+    lines = text.splitlines()
+    out = []
+    for line in lines:
+        s = line.strip()
+        if s.startswith('·') or s.startswith('‐') or s.startswith('–') or s.startswith('-'):
+            out.append('- ' + s[1:].strip())
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
+def looks_like_signature(s: str) -> bool:
+    return '(' in s
+
+
+def is_toc_entry(body: str) -> bool:
+    cleaned = re.sub(r'\s+', '', body)
+    return bool(re.fullmatch(r'[\.\d]+', cleaned))
+
+
+def normalize_whitespace(text: str) -> str:
+    return re.sub(r'\n{3,}', '\n\n', text)
+
+
+def is_empty_section(body: str) -> bool:
+    """True если секция состоит только из пробелов/пустых строк/заголовков."""
+    lines = body.strip().splitlines()
+    for line in lines:
+        s = line.strip()
+        if s and not is_heading(s) and not re.fullmatch(r'[\.\d]+', s):
+            return False
+    return True
+
+
+def is_valid_proc_name(name: str, body: str) -> bool:
+    if name.lower() in {
+        'предназначен', 'предназначена', 'предназначены', 'предназначено', 'представляет',
+        'содержит', 'является', 'описание', 'выполняет', 'возвращает', 'вызывает', 'позволяет',
+        'сохраняет', 'создает', 'удаляет', 'обновляет', 'проверяет', 'получает', 'устанавливает',
+        'формирует', 'записывает', 'читает', 'открывает', 'закрывает', 'считывает', 'запускает',
+        'останавливает', 'выводит', 'вводит', 'генерирует', 'определяет', 'рассчитывает',
+        'вычисляет', 'преобразует', 'копирует', 'перемещает', 'сортирует', 'ищет', 'находит',
+        'выбирает', 'заполняет', 'очищает', 'сбрасывает', 'обнуляет', 'увеличивает', 'уменьшает',
+        'делит', 'умножает', 'складывает', 'вычитает', 'сравнивает', 'валидирует', 'верифицирует',
+        'авторизует', 'аутентифицирует', 'шифрует', 'дешифрует', 'кодирует', 'декодирует',
+        'архивирует', 'разархивирует', 'сжимает', 'разжимает', 'конвертирует', 'транслирует',
+        'интерпретирует', 'компилирует', 'декомпилирует', 'линкует', 'биндит', 'привязывает',
+        'отвязывает', 'связывает', 'разъединяет', 'соединяет', 'разрывает', 'разделяет',
+        'объединяет', 'группирует', 'агрегирует', 'фильтрует', 'маскирует', 'трансформирует',
+        'модифицирует', 'изменяет', 'редактирует', 'переименовывает', 'переменовывает',
+        'запрашивает', 'реализует', 'передает', 'принимает', 'обрабатывает', 'возобновляет',
+        'приостанавливает', 'продолжает', 'завершает', 'начинает', 'отменяет', 'подтверждает',
+        'отклоняет', 'проводит', 'начисляет', 'списывает', 'перечисляет', 'зачисляет',
+        'блокирует', 'разблокирует', 'активирует', 'деактивирует', 'включает', 'выключает',
+        'настраивает', 'конфигурирует', 'инициализирует', 'финализирует', 'загружает',
+        'выгружает', 'обновляет', 'синхронизирует', 'асинхронизирует', 'параллелизирует',
+        'последовательно', 'обрабатывает', 'сортирует', 'фильтрует', 'группирует', 'агрегирует',
+        # Описательные глаголы (ложные имя процедур/классов/методов)
+        'осуществляет', 'используется', 'описывает', 'производит', 'добавляет', 'служит',
+        'сервиса', 'первичного', 'для', 'следующее', 'значение', 'следующее', 'значения',
+        'следующего', 'значения', 'представляет', 'собой', 'является', 'возможность',
+        'применяется', 'применение', 'использование', 'работа', 'работу', 'работы',
+        'работают', 'работает', 'работающий', 'работающая', 'работающие',
+        'следующий', 'следующая', 'следующие', 'следующее', 'приведенный', 'приведенная',
+        'приведенные', 'приведенное', 'приведенных', 'приведенном', 'приведенной',
+        'приведенном', 'приведенном', 'приведенном', 'приведенном', 'приведенном',
+    }:
+        return False
+    if looks_like_signature(body[:300]):
+        return True
+    return sum(1 for c in name if c.isupper()) >= 2
+
+
+# ── Стратегия RSLprc ───────────────────────────────────────────────────────
+RSLPROC_SPLIT_RE = re.compile(r'^(Процедура|Функция|Класс|Метод)(?:\s+|\s*\n\s*)([A-Za-zА-Яа-я0-9_]+)', re.MULTILINE)
+
+def process_rslprc(text: str, title: str) -> str:
+    text = remove_toc_lines(text)
+    text = strip_toc(text)
+    matches = list(RSLPROC_SPLIT_RE.finditer(text))
+    if not matches:
+        return f"# {title}\n\n{normalize_whitespace(text.strip())}"
+
+    meta = text[:matches[0].start()].strip()
+    lines = [f"# {title}", ""]
+    if meta:
+        lines.append(normalize_whitespace(meta))
+        lines.append("")
+
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        kind = m.group(1)
+        name = m.group(2)
+        body = text[start + len(m.group(0)):end].strip()
+
+        if is_toc_entry(body) or is_empty_section(body):
+            continue
+        if kind in ('Процедура', 'Функция', 'Метод', 'Класс') and not is_valid_proc_name(name, body):
+            continue
+
+        lines.append(f"## {kind}: `{name}`")
+        lines.append("")
+        sig_lines = []
+        idx = 0
+        body_lines = body.splitlines()
+        while idx < len(body_lines):
+            l = body_lines[idx].strip()
+            if not l:
+                idx += 1
+                continue
+            if l.startswith('Параметры:') or l.startswith('Возвращаемое значение:') or l.startswith('Примечание.') or l.startswith('Пример.') or l.startswith('Свойства:') or l.startswith('Методы:'):
+                break
+            sig_lines.append(l)
+            idx += 1
+            if l.endswith(')'):
+                break
+        if sig_lines:
+            sig = " ".join(sig_lines)
+            lines.append(f"```rsl\n{sig}\n```")
+            lines.append("")
+        rest = "\n".join(body_lines[idx:]).strip()
+        if rest:
+            split_pat = re.compile(r'^(Параметры:|Возвращаемое значение:|Примечание\.|Пример\.|Свойства:|Методы:|Описание:)', re.MULTILINE)
+            parts = list(split_pat.finditer(rest))
+            if parts:
+                desc = rest[:parts[0].start()].strip()
+                if desc:
+                    lines.append(desc)
+                    lines.append("")
+                for j, p in enumerate(parts):
+                    sec_name = p.group(1).rstrip('.').rstrip(':')
+                    sec_start = p.start()
+                    sec_end = parts[j + 1].start() if j + 1 < len(parts) else len(rest)
+                    sec_body = rest[sec_start + len(p.group(1)):sec_end].strip()
+                    lines.append(f"**{sec_name}:**")
+                    lines.append("")
+                    lines.append(convert_bullets(sec_body))
+                    lines.append("")
+            else:
+                lines.append(convert_bullets(rest))
+                lines.append("")
+    return "\n".join(lines)
+
+
+# ── Стратегия SQL ──────────────────────────────────────────────────────────
+SQL_PACKAGE_RE = re.compile(r'^Пакет\s+([A-Za-z0-9_]+)', re.MULTILINE)
+SQL_PROC_RE = re.compile(r'^(?:Процедура|Функция)?\s*([A-Z][A-Za-z0-9_]*)\s*\(', re.MULTILINE)
+SQL_CONST_RE = re.compile(r'^([A-Z][A-Z0-9_]*)\s+–', re.MULTILINE)
+
+def process_sql(text: str, title: str) -> str:
+    text = remove_toc_lines(text)
+    text = strip_toc(text)
+    lines = [f"# {title}", ""]
+    pkg_matches = list(SQL_PACKAGE_RE.finditer(text))
+    if not pkg_matches:
+        lines.append(normalize_whitespace(text.strip()))
+        return "\n".join(lines)
+
+    for i, pm in enumerate(pkg_matches):
+        pkg_start = pm.start()
+        pkg_end = pkg_matches[i + 1].start() if i + 1 < len(pkg_matches) else len(text)
+        pkg_name = pm.group(1)
+        pkg_body = text[pkg_start + len(pm.group(0)):pkg_end]
+
+        if is_empty_section(pkg_body):
+            continue
+
+        # пропускаем пакеты из оглавления (в начале документа без сигнатур)
+        if pkg_start < len(text) * 0.15 and '(' not in pkg_body:
+            continue
+
+        lines.append(f"## Пакет `{pkg_name}`")
+        lines.append("")
+
+        proc_matches = list(SQL_PROC_RE.finditer(pkg_body))
+        if proc_matches:
+            for j, pr in enumerate(proc_matches):
+                pr_start = pr.start()
+                pr_end = proc_matches[j + 1].start() if j + 1 < len(proc_matches) else len(pkg_body)
+                if j == 0 and pr_start > 0:
+                    preamble = pkg_body[:pr_start].strip()
+                    if preamble:
+                        lines.append(preamble)
+                        lines.append("")
+                proc_name = pr.group(1)
+                proc_body = pkg_body[pr_start + len(pr.group(0)) - 1:pr_end]
+                if is_toc_entry(proc_body) or is_empty_section(proc_body):
+                    continue
+                lines.append(f"### `{proc_name}`")
+                lines.append("")
+                sig_lines = []
+                idx = 0
+                pb_lines = proc_body.splitlines()
+                while idx < len(pb_lines):
+                    l = pb_lines[idx].strip()
+                    if not l:
+                        idx += 1
+                        continue
+                    if l.startswith('Параметры:') or l.startswith('Возвращаемое значение:') or l.startswith('Примечание.') or l.startswith('Пример.'):
+                        break
+                    sig_lines.append(l)
+                    idx += 1
+                    if l.endswith(')'):
+                        break
+                if sig_lines:
+                    sig = " ".join(sig_lines)
+                    lines.append(f"```sql\n{sig}\n```")
+                    lines.append("")
+                rest = "\n".join(pb_lines[idx:]).strip()
+                if rest:
+                    split_pat = re.compile(r'^(Параметры:|Возвращаемое значение:|Примечание\.|Пример\.|Описание:)', re.MULTILINE)
+                    parts = list(split_pat.finditer(rest))
+                    if parts:
+                        desc = rest[:parts[0].start()].strip()
+                        if desc:
+                            lines.append(desc)
+                            lines.append("")
+                        for k, p in enumerate(parts):
+                            sec_name = p.group(1).rstrip('.').rstrip(':')
+                            sec_start = p.start()
+                            sec_end = parts[k + 1].start() if k + 1 < len(parts) else len(rest)
+                            sec_body = rest[sec_start + len(p.group(1)):sec_end].strip()
+                            lines.append(f"**{sec_name}:**")
+                            lines.append("")
+                            lines.append(convert_bullets(sec_body))
+                            lines.append("")
+                    else:
+                        lines.append(convert_bullets(rest))
+                        lines.append("")
+            tail = pkg_body[proc_matches[-1].end():].strip()
+            if tail and not is_toc_entry(tail) and not is_empty_section(tail):
+                const_matches = list(SQL_CONST_RE.finditer(tail))
+                if const_matches:
+                    lines.append("### Константы")
+                    lines.append("")
+                    for cm in const_matches:
+                        const_name = cm.group(1)
+                        const_desc = tail[cm.end():].split('\n', 1)[0].strip()
+                        lines.append(f"- `{const_name}` — {const_desc}")
+                    lines.append("")
+        else:
+            pkg_body_clean = normalize_whitespace(pkg_body)
+            lines.append(pkg_body_clean.strip())
+            lines.append("")
+    return "\n".join(lines)
+
+
+# ── Стратегия DLM / RSL_Forms (Классы / Интерфейсы) ─────────────────────────
+CLASS_SPLIT_RE = re.compile(r'^(Класс|Интерфейс)\s+([A-Za-z0-9_]+)', re.MULTILINE)
+DLM_CLASS_RE = re.compile(r'^(IABS[A-Za-z0-9_]*)\b', re.MULTILINE)
+
+def process_classes(text: str, title: str) -> str:
+    text = remove_toc_lines(text)
+    text = strip_toc(text)
+    matches = list(CLASS_SPLIT_RE.finditer(text))
+    dlm_matches = list(DLM_CLASS_RE.finditer(text))
+    all_matches = sorted(matches + dlm_matches, key=lambda m: m.start())
+    if not all_matches:
+        return f"# {title}\n\n{normalize_whitespace(text.strip())}"
+    meta = text[:all_matches[0].start()].strip()
+    lines = [f"# {title}", ""]
+    if meta:
+        lines.append(normalize_whitespace(meta))
+        lines.append("")
+    for i, m in enumerate(all_matches):
+        start = m.start()
+        end = all_matches[i + 1].start() if i + 1 < len(all_matches) else len(text)
+        if m in matches:
+            kind = m.group(1)
+            name = m.group(2)
+        else:
+            kind = 'Класс'
+            name = m.group(1)
+        body = text[start + len(m.group(0)):end].strip()
+        if is_toc_entry(body) or is_empty_section(body):
+            continue
+        lines.append(f"## {kind}: `{name}`")
+        lines.append("")
+        sig_lines = []
+        idx = 0
+        bl = body.splitlines()
+        while idx < len(bl):
+            l = bl[idx].strip()
+            if not l:
+                idx += 1
+                continue
+            if l.startswith('Свойства:') or l.startswith('Методы:') or l.startswith('Примечание.'):
+                break
+            sig_lines.append(l)
+            idx += 1
+            if l.endswith(')'):
+                break
+        if sig_lines:
+            lines.append(f"```rsl\n{' '.join(sig_lines)}\n```")
+            lines.append("")
+        rest = "\n".join(bl[idx:]).strip()
+        if rest:
+            lines.append(convert_bullets(rest))
+            lines.append("")
+    return "\n".join(lines)
+
+
+# ── Стратегия BnRSL (руководство по языку) ─────────────────────────────────
+BNRSL_SPLIT_RE = re.compile(
+    r'^(Введение|Элементы языка|Служебные слова|Имена|Область видимости|Комментарии|Объекты языка|'
+    r'Типы данных|Переменные|Символические константы|Скалярные типы|Объектные типы|Константы|'
+    r'Выражения|Синтаксис|Семантика|Структура RSL-программы|Загрузка и кэширование|Директива IMPORT|'
+    r'Конструкции языка RSL|Пустая инструкция|Инструкция "выражение"|Условная инструкция IF|'
+    r'Инструкция цикла WHILE|Инструкция цикла FOR|Инструкция прерывания BREAK|Инструкция возврата RETURN|'
+    r'Инструкция вывода|Формат управляющей строки|Определение переменных VAR|'
+    r'Переменные с декларацией типа данных|Переменные без декларации типа данных)\b',
+    re.MULTILINE
+)
+
+def process_bnrsl(text: str, title: str) -> str:
+    text = remove_toc_lines(text)
+    text = strip_toc(text)
+    matches = list(BNRSL_SPLIT_RE.finditer(text))
+    if len(matches) < 2:
+        return f"# {title}\n\n{normalize_whitespace(text.strip())}"
+    lines = [f"# {title}", ""]
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        header = m.group(1).strip()
+        body = text[start + len(m.group(0)):end].strip()
+        if is_toc_entry(body) or is_empty_section(body):
+            continue
+        lines.append(f"## {header}")
+        lines.append("")
+        lines.append(convert_bullets(body))
+        lines.append("")
+    return "\n".join(lines)
+
+
+# ── Стратегия Instruction (plain text) ──────────────────────────────────────
+INSTRUCTION_SPLIT_RE = re.compile(
+    r'^(Введение|Общие положения|Технологическая модель|Виды событий|Элементы программирования|'
+    r'Команды инструмента|Пример скрипта|Импорт скриптов|Синхронизация|Приложение|'
+    r'Создание ресурса|Параметры ресурса|Меню редактора ресурсов|'
+    r'Разработка печатных форм|Организация создания|Файл данных|Правила заполнения|'
+    r'Вставка изображений|Печать в текстовые поля|Удаление таблицы|Обрамление таблицы|Высота строк|'
+    r'Отчеты|Управляющий файл|Тестирование|Состав каталога|Управление трассировкой|'
+    r'Трассировка операций|Трассировка изменения|Трассировка возникновения|Трассировка выполнения)\b',
+    re.MULTILINE | re.IGNORECASE
+)
+
+def process_instruction(text: str, title: str) -> str:
+    text = remove_toc_lines(text)
+    text = strip_toc(text)
+    matches = list(INSTRUCTION_SPLIT_RE.finditer(text))
+    if len(matches) < 2:
+        return f"# {title}\n\n{normalize_whitespace(text.strip())}"
+    lines = [f"# {title}", ""]
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        header = m.group(1).strip()
+        body = text[start + len(m.group(0)):end].strip()
+        if is_toc_entry(body) or is_empty_section(body):
+            continue
+        lines.append(f"## {header}")
+        lines.append("")
+        lines.append(convert_bullets(body))
+        lines.append("")
+    return "\n".join(lines)
+
+
+# ── Главный диспетчер ──────────────────────────────────────────────────────
+def classify(name: str) -> str:
+    lname = name.lower()
+    if '_rslprc' in lname and lname.endswith('.pdf'):
+        return 'rslprc'
+    if '_sql' in lname and lname.endswith('.pdf'):
+        return 'sql'
+    if lname == 'dlm.pdf':
+        return 'dlm'
+    if lname == 'rsl_forms.pdf':
+        return 'rsl_forms'
+    if lname == 'bnrsl.pdf':
+        return 'bnrsl'
+    if lname == 'jasperreports.pdf':
+        return 'instruction'
+    if lname in ('atm.pdf', 'rce32.pdf', 'trace.pdf', 'reporttools.pdf', 'usercryptplugin.pdf', 'dbexp.pdf', 'reports_instrexp.pdf', 'retail_instrument.pdf'):
+        return 'instruction'
+    return 'instruction'
+
+
+def process_file(path: str):
+    name = os.path.basename(path)
+    title = name.replace('.pdf', '').replace('_', ' ')
+    print(f"Обработка: {name}")
+    raw = extract_raw(path)
+    doc_type = classify(name)
+
+    if doc_type == 'rslprc':
+        md = process_rslprc(raw, title)
+    elif doc_type == 'sql':
+        md = process_sql(raw, title)
+    elif doc_type in ('dlm', 'rsl_forms'):
+        md = process_classes(raw, title)
+    elif doc_type == 'bnrsl':
+        md = process_bnrsl(raw, title)
+    else:
+        md = process_instruction(raw, title)
+
+    out_path = os.path.join(OUT_DIR, name.replace('.pdf', '.md'))
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(md)
+    print(f"  ✅ {out_path}")
+
+
+def main():
+    files = sorted([f for f in os.listdir(PDF_DIR) if f.lower().endswith('.pdf')])
+    print(f"Всего PDF: {len(files)}")
+    for f in files:
+        process_file(os.path.join(PDF_DIR, f))
+    print("Готово!")
+
+
+if __name__ == '__main__':
+    main()
