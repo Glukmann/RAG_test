@@ -1,3 +1,12 @@
+---
+title: RSL_30_debugger
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 12
+generated: true
+---
+
 # Отладчик макропрограмм
 
 > RSL (R-Style Language) — Руководство программиста

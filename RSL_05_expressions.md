@@ -1,3 +1,12 @@
+---
+title: RSL_05_expressions
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 3
+generated: true
+---
+
 # Выражения
 
 > RSL (R-Style Language) — Руководство программиста

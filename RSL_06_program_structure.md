@@ -1,3 +1,12 @@
+---
+title: RSL_06_program_structure
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 5
+generated: true
+---
+
 # Структура программы
 
 > RSL (R-Style Language) — Руководство программиста

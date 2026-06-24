@@ -1,3 +1,12 @@
+---
+title: Trace
+description: Trace — трассировка и отладка
+category: Trace
+source: PDF-документация RS-Bank V.6
+sections: 6
+generated: true
+---
+
 # Trace
 
 ## Введение

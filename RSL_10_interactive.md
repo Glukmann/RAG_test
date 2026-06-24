@@ -1,3 +1,12 @@
+---
+title: RSL_10_interactive
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 9
+generated: true
+---
+
 # Интерактивный режим
 
 > RSL (R-Style Language) — Руководство программиста

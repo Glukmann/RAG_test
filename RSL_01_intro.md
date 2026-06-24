@@ -1,3 +1,12 @@
+---
+title: RSL_01_intro
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 0
+generated: true
+---
+
 # Введение
 
 > RSL (R-Style Language) — Руководство программиста

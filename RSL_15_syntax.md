@@ -1,3 +1,12 @@
+---
+title: RSL_15_syntax
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 4
+generated: true
+---
+
 # Сводка синтаксиса
 
 > RSL (R-Style Language) — Руководство программиста

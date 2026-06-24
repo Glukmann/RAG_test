@@ -1,3 +1,12 @@
+---
+title: RSL_14_dlm
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 6
+generated: true
+---
+
 # DLM SDK
 
 > RSL (R-Style Language) — Руководство программиста

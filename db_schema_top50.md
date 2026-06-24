@@ -1,3 +1,12 @@
+---
+title: db_schema_top50
+description: Структура базы данных RS-Bank
+category: Схема-БД
+source: PDF-документация RS-Bank V.6
+sections: 50
+generated: true
+---
+
 # Структура данных RS-Bank (извлечена из макросов)
 
 Данный документ содержит информацию о таблицах, полях и SQL-запросах, извлечённых из реальных макросов RS-Bank.

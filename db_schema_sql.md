@@ -1,3 +1,12 @@
+---
+title: db_schema_sql
+description: Структура базы данных RS-Bank
+category: Схема-БД
+source: PDF-документация RS-Bank V.6
+sections: 30
+generated: true
+---
+
 # SQL-запросы RS-Bank (извлечены из макросов)
 
 Данный документ содержит реальные SQL-запросы, извлечённые из производственных макросов RS-Bank, сгруппированные по таблицам.

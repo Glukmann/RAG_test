@@ -1,3 +1,12 @@
+---
+title: RSL_12_builtins
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 11
+generated: true
+---
+
 # Встроенные процедуры RSL
 
 > RSL (R-Style Language) — Руководство программиста

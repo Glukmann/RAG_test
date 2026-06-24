@@ -1,3 +1,12 @@
+---
+title: RSL_13_classes_objects
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 7
+generated: true
+---
+
 # Классы, объекты и вспомогательные процедуры
 
 > RSL (R-Style Language) — Руководство программиста
@@ -418,7 +427,7 @@ UserFill (dlg)
 
 ## Другие процедуры
 
-### ExecMacro
+## Другие процедуры — ExecMacro
 
 ```rsl
 ExecMacro (string, .....)
@@ -438,7 +447,7 @@ end;
 ExecMacro (@MyMacro, "Это параметр для MyMacro")
 ```
 
-### ExecMacro2
+## Другие процедуры — ExecMacro2
 
 ```rsl
 ExecMacro2 (string, .....)
@@ -446,7 +455,7 @@ ExecMacro2 (string, .....)
 
 Процедура эквивалентна процедуре `ExecMacro`, но возвращает значение, которое возвращает запускаемая процедура.
 
-### ExecMacroFile
+## Другие процедуры — ExecMacroFile
 
 ```rsl
 ExecMacroFile (Module [, ProcName [, Parm1, Parm2, ...]])
@@ -493,7 +502,7 @@ par
 RetFrom MainProc
 ```
 
-### ReplaceMacro
+## Другие процедуры — ReplaceMacro
 
 ```rsl
 ReplaceMacro (string1, [string2])
@@ -559,7 +568,7 @@ Test
 Это Test
 ```
 
-### ExecExp
+## Другие процедуры — ExecExp
 
 ```rsl
 ExecExp (string)
@@ -571,7 +580,7 @@ ExecExp (string)
 Val = ExecExp ("10 + 20*5")
 ```
 
-### Индикатор выполнения
+## Другие процедуры — Индикатор выполнения
 
 #### InitProgress
 
@@ -614,7 +623,7 @@ RemProgress
 
 Данная процедура удаляет с экрана окно индикатора выполнения, выведенное процедурой `InitProgress`.
 
-### GetEnv
+## Другие процедуры — GetEnv
 
 ```rsl
 GetEnv (string): string
@@ -634,7 +643,7 @@ println (PATH)
 
 так как если имя переменной RSL совпадает с именем переменной среды, то переменная RSL инициализируется значением переменной среды.
 
-### RunError
+## Другие процедуры — RunError
 
 ```rsl
 RunError (ermes)
@@ -644,7 +653,7 @@ RunError (ermes)
 
 В качестве параметра процедуры используется символьная строка `ermes`, содержащая текст сообщения об ошибке.
 
-### Exit
+## Другие процедуры — Exit
 
 ```rsl
 Exit ([integer] [, string])
@@ -657,7 +666,7 @@ Exit ([integer] [, string])
 | `integer` | Режим просмотра результата: `1` — не показывать окно просмотра; `2` — сразу распечатать на принтере |
 | `string` | Сообщение, которое выводится в выходной поток |
 
-### MemSize
+## Другие процедуры — MemSize
 
 ```rsl
 MemSize (): integer
@@ -665,7 +674,7 @@ MemSize (): integer
 
 Процедура возвращает количество свободной оперативной памяти, доступной для работы программы.
 
-### Version
+## Другие процедуры — Version
 
 ```rsl
 Version (): integer
@@ -673,7 +682,7 @@ Version (): integer
 
 Процедура возвращает целое число — номер версии RSL.
 
-### CurrentLine
+## Другие процедуры — CurrentLine
 
 ```rsl
 CurrentLine ([line]): integer
@@ -688,7 +697,7 @@ if (CurrentLine > 40)
 end
 ```
 
-### UserNumber
+## Другие процедуры — UserNumber
 
 ```rsl
 UserNumber (): integer
@@ -701,7 +710,7 @@ MyFileName = "DemoFile." + UserNumber;
 SetOutput (MyFileName)
 ```
 
-### Random
+## Другие процедуры — Random
 
 ```rsl
 Random ([integer])
@@ -714,7 +723,7 @@ Random ([integer])
 | задан | от `0` до `1` |
 | не задан | от `0` до `32766` |
 
-### System
+## Другие процедуры — System
 
 ```rsl
 System (Number, CodeFor (Type))
@@ -724,7 +733,7 @@ System (Number, CodeFor (Type))
 
 Параметр `Type` задаёт буквенный код подсистемы, из которой модуль вызывается на выполнение; коды подсистем определяются в файле `typeac.dbt`.
 
-### IsStandAlone
+## Другие процедуры — IsStandAlone
 
 ```rsl
 IsStandAlone: bool
@@ -747,7 +756,7 @@ else
 end
 ```
 
-### TestEvent
+## Другие процедуры — TestEvent
 
 ```rsl
 TestEvent ([pause])
@@ -777,7 +786,7 @@ while (not Done && next (ff))
 end
 ```
 
-### IsGUI
+## Другие процедуры — IsGUI
 
 ```rsl
 IsGUI: bool
@@ -790,7 +799,7 @@ IsGUI: bool
 | `FALSE` | Консольное приложение Windows NT или программа DOS |
 | `TRUE` | Графическая среда Visual RSL |
 
-### ErrPrint
+## Другие процедуры — ErrPrint
 
 ```rsl
 ErrPrint (...)
@@ -798,7 +807,7 @@ ErrPrint (...)
 
 Процедура печатает свои параметры в стандартный поток ошибок.
 
-### Trace
+## Другие процедуры — Trace
 
 ```rsl
 Trace (...)
@@ -806,7 +815,7 @@ Trace (...)
 
 Процедура печатает свои параметры в окно трассировки отладчика RSL.
 
-### DebugBreak
+## Другие процедуры — DebugBreak
 
 ```rsl
 DebugBreak
@@ -814,7 +823,7 @@ DebugBreak
 
 Если в системе установлен отладчик RSL, данная процедура вызывает прерывание исполнения RSL-программы и активизацию отладчика на следующей после `DebugBreak` инструкции.
 
-### ModuleFileName
+## Другие процедуры — ModuleFileName
 
 ```rsl
 ModuleFileName: string
@@ -822,7 +831,7 @@ ModuleFileName: string
 
 Процедура возвращает строку с именем файла текущего исполняемого модуля RSL.
 
-### ModuleName
+## Другие процедуры — ModuleName
 
 ```rsl
 ModuleName: string
@@ -830,7 +839,7 @@ ModuleName: string
 
 Процедура возвращает строку с именем текущего исполняемого модуля RSL.
 
-### SplitFile
+## Другие процедуры — SplitFile
 
 ```rsl
 SplitFile (pathName: string [, name: string [, ext: string]]): string
@@ -846,7 +855,7 @@ SplitFile (pathName: string [, name: string [, ext: string]]): string
 
 Возвращаемым значением процедуры является имя каталога — строка типа `V_STRING`.
 
-### MergeFile
+## Другие процедуры — MergeFile
 
 ```rsl
 MergeFile (dirName: string, name: string [, ext: string]): string
@@ -860,7 +869,7 @@ MergeFile (dirName: string, name: string [, ext: string]): string
 | `name` | Имя файла |
 | `ext` | Расширение имени файла |
 
-### FindPath
+## Другие процедуры — FindPath
 
 ```rsl
 FindPath (name: string [, dirList: string [, defExt: string [, curDir: bool]]]): string
@@ -877,7 +886,7 @@ FindPath (name: string [, dirList: string [, defExt: string [, curDir: bool]]]):
 
 Процедура возвращает найденное имя файла либо пустую строку в случае неудачи.
 
-### GetSysDir
+## Другие процедуры — GetSysDir
 
 ```rsl
 GetSysDir ([ndir: integer]): string
@@ -894,7 +903,7 @@ GetSysDir ([ndir: integer]): string
 
 Если параметр не задан, возвращается список каталогов поиска `mac`-файлов.
 
-### PrintModule
+## Другие процедуры — PrintModule
 
 ```rsl
 PrintModule (modName: string)
@@ -902,7 +911,7 @@ PrintModule (modName: string)
 
 Процедура выводит в стандартный выходной поток имена процедур и классов, определённых в модуле с именем `modName`.
 
-### CmdArgs
+## Другие процедуры — CmdArgs
 
 ```rsl
 CmdArgs: string

@@ -1,3 +1,12 @@
+---
+title: RCE32
+description: RCE32 — Remote Call Environment
+category: RCE32
+source: PDF-документация RS-Bank V.6
+sections: 4
+generated: true
+---
+
 # RCE32
 
 ## Введение

@@ -1,3 +1,12 @@
+---
+title: RSL_03_data_types
+description: Справочник по языку RSL (RS-Bank Scripting Language)
+category: RSL-справочник
+source: PDF-документация RS-Bank V.6
+sections: 4
+generated: true
+---
+
 # Типы данных
 
 > RSL (R-Style Language) — Руководство программиста
