@@ -36,21 +36,29 @@ def chunk_markdown(text: str, path: Path) -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     current: list[str] = []
 
+    # Determine doc_type based on path / filename
+    path_str = str(path).lower()
+    fname = path.name.lower()
+    if "practice" in path_str or "pattern_" in fname or "example" in fname:
+        doc_type = "code_examples"
+    else:
+        doc_type = "docs"
+
     for line in lines:
         if line.startswith("#"):
             if current:
-                chunks.append(_make_chunk("\n".join(current).strip(), path, "docs", "markdown"))
+                chunks.append(_make_chunk("\n".join(current).strip(), path, doc_type, "markdown"))
             current = [line]
         else:
             current.append(line)
 
     if current:
-        chunks.append(_make_chunk("\n".join(current).strip(), path, "docs", "markdown"))
+        chunks.append(_make_chunk("\n".join(current).strip(), path, doc_type, "markdown"))
 
     # If no headers found, fall back to size-based chunking
     if len(chunks) == 1 and not lines[0].startswith("#") if lines else True:
         flat = "\n".join(lines)
-        return split_by_size(flat, path, "docs", "markdown", size=1200, overlap=200)
+        return split_by_size(flat, path, doc_type, "markdown", size=1200, overlap=200)
 
     return [c for c in chunks if c["text"]]
 
