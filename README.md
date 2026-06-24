@@ -64,5 +64,5 @@ curl http://localhost:8002/mcp \
 
 ## Документация
 
-- Техническое задание: [RAG_ChromaDB_TZ.md](./RAG_ChromaDB_TZ.md)
+- Архитектура и развёртывание: [ARCHITECTURE_AND_DEPLOYMENT.md](./ARCHITECTURE_AND_DEPLOYMENT.md)
 - Инструкции для агентов: [AGENTS.md](./AGENTS.md)
