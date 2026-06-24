@@ -947,3 +947,1029 @@ private macro GenPmSwiftMxPacs002
 
 ---
 
+## Пример 16: `sendFNSPercentCorrectRequest`
+
+**Источник:** `Mac/DEPOSITR/FnsPercentServices.mac`
+**Тип:** `macro`
+**Размер:** 38 строк
+
+```rsl
+macro sendFNSPercentCorrectRequest( reqInfo ) : PRCSendPrimaryRequestResponseType
+    var response : PRCSendPrimaryRequestResponseType;
+    var ResponseHeader : PrcRequestHeaderType;
+    ResponseHeader.ReqID = reqInfo.RequestHeader.ReqID;
+    ResponseHeader.SenderID = sendID;
+    response.ResponseHeader = ResponseHeader;
+
+    var resultPercentCount = findPercentInfoCount(reqInfo.RequestData.Period, 1);
+
+    if (not resultPercentCount.moveNext())
+        var ResponseSenderData : FnsPercentResponseSenderDataType;
+        var ObjectError : PRCObjectErrorType;
+        ObjectError.ErrorCode = "PRC000003";
+        ObjectError.ErrorText = "Перечень данных для корректировки пуст";
+        ResponseSenderData.ObjectError = ObjectError;
+        response.ResponseSenderData = ResponseSenderData;
+    else
+        var ResponseServiceData : FnsPercentResponseServiceDataType;
+        if (resultPercentCount.value("t_responseID") == StrFor(1))
+            ResponseServiceData.ResponseID = SubStr(CreateGUID(), 2, 36);
+        else
+            ResponseServiceData.ResponseID = resultPercentCount.value("t_responseID");
+        end;
+
+        ResponseServiceData.PercentCount = Int(resultPercentCount.value("percentCount"));
+        ResponseServiceData.Period = reqInfo.RequestData.Period;
+        ResponseServiceData.NOCode = reqInfo.RequestData.NOCode;
+        response.ResponseServiceData = ResponseServiceData;
+
+        if (resultPercentCount.value("t_responseID") == StrFor(1))
+            updatePercentInfo(ResponseServiceData, 1);
+            deleteFromFLC(ResponseServiceData, 1);
+            deleteFromPCCorrect(ResponseServiceData);
+        end;
+    end;
+
+    return response;
+end;
+```
+
+---
+
+## Пример 17: `GetInfoByCells`
+
+**Источник:** `Mac/CELLS/freeclrep.mac`
+**Тип:** `macro`
+**Размер:** 124 строк
+
+```rsl
+Macro GetInfoByCells()
+
+   var sql_str = "";
+   var sql_cmd;
+   var sql_rst;
+
+   var opendate    = date(00,00,0000);
+   var prolongdate = date(00,00,0000);
+   var enddate     = date(00,00,0000);
+   var nulldate    = date(00,00,0000);
+
+   var result_str        = ""; /* Результирующая строка по клиентам*/
+   var result_str_trust  = ""; /* Результирующая строка по клиентам*/
+
+   var StatNameFree = 0 ; /* Свободная ячейка */
+   var StatNameDuty = 1 ; /* Занятая ячейка */
+   var StatNameBron = 2 ; /* Забронированная ячейка */
+
+   var  CellNameFree = "СВОБОДНА",
+        CellNameDuty = "ЗАНЯТА",     
+        CellNameBrok = "НЕИСПРАВНА",       
+        CellName     = ""; 
+
+   /* Общее количество несиправных ячеек */
+   var OverBrokenCells = 0;
+
+   var counter = 1; /* индикатор возрастания */
+                   
+   SQL_STR = " SELECT   df.t_safenumber, dc.t_cellnumber, dc.T_RESERVEDFOR,   dct.t_name, nvl(dcnt.t_contractid,0) AS t_contractid, dc.t_state,";
+   SQL_STR = SQL_STR + "         dcnt.t_opendate, dcnt.t_prolongdate, dcnt.t_enddate ";
+   SQL_STR = SQL_STR + "    FROM dds_cellt_dbt dct, dds_cell_dbt dc LEFT JOIN dds_contr_dbt dcnt ";
+   SQL_STR = SQL_STR + "         ON dc.t_branch = dcnt.t_branch ";
+   SQL_STR = SQL_STR + "       AND dc.t_safeid = dcnt.t_safeid ";
+   SQL_STR = SQL_STR + "       AND dc.t_cellnumber = dcnt.t_cellnumber ";
+   SQL_STR = SQL_STR + "       AND ( dcnt.t_closedate = TO_DATE ('01.01.0001', 'dd.mm.yyyy') OR  dcnt.t_closedate > "+sqlDateToStr({curdate})+" ) ";
+   SQL_STR = SQL_STR + "         , ";
+   SQL_STR = SQL_STR + "         dds_safe_dbt df ";
+   SQL_STR = SQL_STR + "   WHERE dc.t_branch =  "+ string(NumFnCash());
+   SQL_STR = SQL_STR + "     AND (dc.t_state = " + StatNameFree + " OR dc.t_state = "+StatNameDuty + " OR dc.t_state = "+ StatNameBron+" ) ";
+   SQL_STR = SQL_STR + "     AND dc.t_celltypeid = dct.t_celltypeid ";
+   SQL_STR = SQL_STR + "     AND df.t_branch = dc.t_branch ";
+   SQL_STR = SQL_STR + "     AND df.t_safeid = dc.t_safeid ";
+   SQL_STR = SQL_STR + "ORDER BY dc.t_branch, dc.t_safeid, dc.t_celltypeid, dc.t_cellnumber ";
+
+   sql_cmd = RsdCommand( SQL_STR );
+   sql_rst = RsdRecordSet( sql_cmd );
+
+   /* Открытие шаблона для формирования отчета */
+   If( ObjTempl.OpenTemplate(NameTemplateXLS, false ))
+      /* заполнение именованных полей */
+      ObjTempl.SetValue_NameCell("DateReport", GetCurDate() );  
+      ObjTempl.SetValue_NameCell("NameFnCash", doGetBranchName());
+      /* Зарегистрируем таблицу, указав диапазон строки таблицы */
+      Table = ObjTempl.RegisterTable("TableReport");
+      bPos  = Table.bRowTable;
+
+      While ( sql_rst.movenext )
+         Message(" Формирование отчета по арендованным ячейкам, обработано ... " , counter );         
+
+         opendate    = SQL_ConvTypeDate( sql_rst.value("t_opendate" ));
+         prolongdate = SQL_ConvTypeDate( sql_rst.value("t_prolongdate" ));
+         enddate     = SQL_ConvTypeDate( sql_rst.value("t_enddate" ));
+
+         /* если по договору было продления срока, то дату начала будет датой пролонгации */ 
+         If( prolongdate > opendate )
+            opendate = prolongdate;
+         end;
+
+         /* Определение типа ячейки */
+         If( sql_rst.value("t_state")  == 0 )
+            CellName = CellNameFree; 
+         elif( (sql_rst.value("t_state") > 0 ) AND (sql_rst.value("T_RESERVEDFOR") != -1 ))
+            CellName = CellNameDuty;     
+         elif( (sql_rst.value("t_state") == 1) AND( sql_rst.value("T_RESERVEDFOR") == -1 )) /* Ярмольчук. Если не занята, то неисправна. (обходим ситуацию, когда операция вкрытия сторнировалась) */
+            CellName = CellNameDuty;     
+         elif( (sql_rst.value("t_state") > 0 ) AND( sql_rst.value("T_RESERVEDFOR") == -1 )) 
+            CellName = CellNameBrok;     
+            OverBrokenCells =OverBrokenCells + 1;
+         end;
+
+         /* Заполняем строку таблицы данными */
+         Table.SetValueCell("Cell1" , string(counter));
+         Table.SetValueCell("Cell2" , string(sql_rst.value("t_name") ) ); 
+         Table.SetValueCell("Cell3" , string(CellName));
+         Table.SetValueCell("Cell4" , string(sql_rst.value("t_safenumber") ) );
+         Table.SetValueCell("Cell5" , string(sql_rst.value("t_cellnumber") ) );
+
+         /*Определение владельцев договора */
+         If( sql_rst.value("t_contractid") > 0 )
+            GetInfoByClient( sql_rst.value("t_contractid"), result_str ); 
+         else
+            result_str = "";
+         end;
+         Table.SetValueCell("Cell6" , string(result_str));
+
+         Table.SetValueCell("Cell7" , string(opendate ));
+         Table.SetValueCell("Cell8" , string(enddate )); 
+
+         /* определение доверенных лиц договора */
+         If( sql_rst.value("t_contractid") > 0 )
+            GetClientTrust( sql_rst.value("t_contractid"), result_str_trust );
+         else
+            result_str_trust = "";
+         end;
+         Table.SetValueCell("Cell9" , string( result_str_trust )); 
+
+         Table.AddStr(); 
+
+         counter = counter + 1;
+      end;
+      /* Формируем итоги */
+      ObjTempl.SetValue_NameCell("OverAllCells", GetOverAllCells() );  
+      ObjTempl.SetValue_NameCell("BusyCells"   , GetBusyCells()    );
+      ObjTempl.SetValue_NameCell("FreeCells"   , GetFreeCells()    );  
+      ObjTempl.SetValue_NameCell("BrokenCells" , OverBrokenCells   );
+
+      Table.EndTable(); 
+      ObjTempl.SaveAsTemplate(NameReportXLS);
+      PrintLn(" Отчет - ",NameReportXLS," сформирован, для печати формы, переключитесь в окно Excel !!! " );
+   else
+      MsgBox(" Ошибка открытия формы шаблона: ", NameTemplateXLS );   
+      Exit(1);
+   end;
+End;
+```
+
+---
+
+## Пример 18: `WebCore_CB_GetRegParm`
+
+**Источник:** `Mac/Cb/ws_notes.mac`
+**Тип:** `macro`
+**Размер:** 21 строк
+
+```rsl
+macro WebCore_CB_GetRegParm ():WebResponseBuilder
+
+  ResponseBuilder = WebResponseBuilder();
+
+  var ErrorMessage : WsErrorMessage = WsErrorMessage();
+  
+  var err=0;
+  
+  var ProcValue;
+  
+  GetRegistryValue( "BANK_INI/ОБЩИЕ ПАРАМЕТРЫ/ДОСТУП/ИСТОРИЯ ЗНАЧЕНИЙ ПРИМЕЧАНИЙ", V_BOOL, ProcValue, err);
+
+  if(err == 0)
+    
+    responseBuilder.SetUserObject( ProcValue);
+	 
+  else
+
+    responseBuilder.SetUserObject( false);
+	
+  end;
+```
+
+---
+
+## Пример 19: `КОРРЕСП_ГЛАВА_Г`
+
+**Источник:** `Mac/DLNG/dlreport.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+MACRO КОРРЕСП_ГЛАВА_Г():BOOL
+  VAR ErrCode = 0;
+  VAR RetVal:bool = true;
+  GetRegistryValue( "COMMON\\КОРРЕСП_ГЛАВА_Г", V_BOOL, RetVal, ErrCode );
+  if( ErrCode != 0 )
+     RetVal = true;
+  end;
+```
+
+---
+
+## Пример 20: `Run`
+
+**Источник:** `Mac/DLNG/SECUR/TaxAccSecur_Form.mac`
+**Тип:** `macro`
+**Размер:** 23 строк
+
+```rsl
+  macro Run()
+    var stat = Run();
+
+    RepParams.Period       = GetFieldValue(PNFLD_TAXACCSECUR_PERIOD);
+    RepParams.Year         = GetFieldValue(PNFLD_TAXACCSECUR_YEAR);
+    RepParams.Growth       = GetFieldValue(PNFLD_TAXACCSECUR_Growth);
+    RepParams.BegDate      = GetFieldValue(PNFLD_TAXACCSECUR_BEGDATE);
+    RepParams.EndDate      = GetFieldValue(PNFLD_TAXACCSECUR_ENDDATE);
+    RepParams.SubKind      = GetFieldValue(PNFLD_TAXACCSECUR_SUBKIND);
+    RepParams.Print_NUNP = RepParams.Print_NUSVOD = RepParams.Print_NUMSFO = false;
+    if( RepParams.SubKind == SC_NUNP )
+      RepParams.Print_NUNP = true;
+    elif( RepParams.SubKind == SC_NUNSVOD )
+      RepParams.Print_NUNP = true;/*нужен для свода*/
+      RepParams.Print_NUSVOD = true;
+    elif( RepParams.SubKind == SC_NUMSFO )
+      RepParams.Print_NUNP = true;/*нужен для свода*/
+      RepParams.Print_NUSVOD = true;
+      RepParams.Print_NUMSFO = true;
+    end;
+
+    return stat;
+  end;
+```
+
+---
+
+## Пример 21: `SendEmail`
+
+**Источник:** `Mac/Cb/QueueWSLib.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro SendEmail(title, content)
+    var EmailList;
+    GetRegistryValue("COMMON\\QUEUE\\E-MAIL", V_STRING, EmailList);
+
+    AddNotifyToDbt(title, content, EmailList);
+    SendNotyfyToEmail(false, false);
+end;
+```
+
+---
+
+## Пример 22: `DL_GetValueName`
+
+**Источник:** `Mac/DLNG/dldlngfun.mac`
+**Тип:** `macro`
+**Размер:** 10 строк
+
+```rsl
+macro DL_GetValueName( List, Element, Name )
+   var ll = TRecHandler("llvalues.dbt");
+   if( LL_FindLLVALUES( List, Element, ll ) == true )
+      SetParm( 2, ll.rec.Name );
+      return ll.rec.Code;
+   else
+      SetParm( 2, "" );
+      return "";
+   end;
+end;
+```
+
+---
+
+## Пример 23: `ExecuteCollectionOper`
+
+**Источник:** `Mac/DEPOSITR/collection_oper.mac`
+**Тип:** `macro`
+**Размер:** 129 строк
+
+```rsl
+macro ExecuteCollectionOper( objectType, objectId, param )
+    var returnObj = FuncObjResult( FUNCOBJ_RESULT_OK, "", 0 );
+    var cmd, rs;
+    var trnStat = 0;
+
+    ClearRecord(operParm);
+    ClearRecord(ddoc);
+    OpenDepFiles();
+
+    cmd = RsdCommand( "  select dep.t_iscur, " +
+                      "         dep.t_fncash, " +
+                      "         dep.t_referenc, " +
+                      "         dep.t_account, " +
+                      "         dep.t_code_currency, " +
+                      "         dep.t_Type_Account, " +
+                      "         dep.t_CodClient, " +
+                      "         dep.t_SvodAccount, " +
+                      "         ar.t_sum, " + 
+                      "         ar.t_Source, " +
+                      "         ar.t_Id, " +
+                      "         ar.t_GroupRequirement, " +
+                      "         ar.t_PaymentID, " + 
+                      "         ar.t_Priority, " +
+                      "         ar.t_Comment, " +
+                      "         ar.t_PenaltyKind " +
+                      "  from drt_ArrestParm_dbt ar  " +
+                      "       inner join ddepositr_dbt dep " +
+                      "                  on ar.t_referenceAcc = dep.t_referenc " +
+                      " where ar.t_id = ? ");
+
+    cmd.addParam( "", RSDBP_IN, Int( objectId ) );
+    cmd.execute;
+
+    rs = RsdRecordSet( cmd );
+    if ( rs.moveNext )
+        OpenDepFiles();
+        var FlagCur = NumFlagCur;
+        var FNCash  = NumFNCash;
+        ddoc.IsCur = Int( rs.value("t_iscur") );
+        ddoc.FNCash = Int( rs.value("t_fncash") );
+        ddoc.RealFNCash = Int( rs.value("t_fncash") );
+        ddoc.Referenc = Int( rs.value("t_referenc") );
+        ddoc.Account = SQL_ConvTypeStr( rs.value("t_account") );
+        ddoc.Code_Currency = Int( rs.value("t_code_currency") );
+        ddoc.Type_Account = SQL_ConvTypeStr( rs.value("t_Type_Account") );
+        ddoc.CodClient = Int( rs.value("t_CodClient") );
+        ddoc.Date_Document = getCurDate( );
+        ddoc.DepDate_Document = getCurDate( );
+        ddoc.Oper = {oper};
+        ddoc.YesSbook = "X";
+        ddoc.IsControl = StrFor(1);
+        ddoc.InSum = SQL_ConvTypeSum( rs.value("t_sum") );
+        ddoc.TypeOper = 98;
+        ddoc.ApplType = 0;
+        ddoc.TypeComplexOper = ddoc.TypeOper;
+
+        ClearRecord(operParm);
+        operParm.Type_Oper       = ddoc.TypeOper;
+        operParm.TypeComplexOper = operParm.Type_Oper;
+        operParm.Referenc        = ddoc.Referenc;
+        operParm.DepDate         = {curdate};
+        operParm.Type_Account    = ddoc.Type_Account;
+        operParm.IdClaim         = rs.value("t_Id");
+        // Если права принадлежат вносителю, то операция должна выполняться от имени вносителя
+        if (checkDoesImporterHasRights(rs.value("t_SvodAccount"), rs.value("t_FNCash"), {curdate}) != 0)
+            operParm.DocumentAuthor  = 4; // ACCOUNT_IMPORTER
+        end;
+
+        setFNCash(rs.value("t_fncash"));
+        setFlagCur(rs.value("t_iscur"));
+
+        var restAcc = 0;
+        getRestAccForArrest(rs.value("t_Referenc"), 
+                            rs.value("t_code_currency"), 
+                            rs.value("t_PenaltyKind"), 
+                            rs.value("t_Priority"), 
+                            false, 
+                            restAcc);
+        if ( (restAcc > 0) and (restAcc < SQL_ConvTypeSum( rs.value("t_sum") )) )
+            ddoc.OutSum = restAcc;
+        end;
+
+        trnStat = Выполнение_Операции(operParm, ddoc);
+
+        if (trnStat != 0)
+            returnObj.state = FUNCOBJ_RESULT_FATAL;
+            if ((trnStat == 1696) or (trnStat == 22448))
+                fnsPutInFuncObj(trnStat, Int(rs.value("t_PaymentID")), ddoc.InSum, ddoc.Oper, "0", objectId);
+                returnObj.errorText = "Не удалось выполнить 98 операцию";
+                returnObj.errorCode = trnStat;
+            else
+                returnObj.errorText = "Не удалось выполнить 98 операцию";
+                returnObj.errorCode = trnStat;
+            end;
+        else
+            var resCode = 4, tmpId = 0;
+            // Определим результат выполнения
+            var arrChecKCmd = RsdCommand("select t_totalSum from DSB_ARREST_DBT where t_idarrestparm = ? order by t_id DESC");
+            arrChecKCmd.addParam( "", RSDBP_IN, Int( objectId ) );
+            arrChecKCmd.execute;                    
+            var rsArrChecK = RsdRecordSet(arrChecKCmd);
+            if (rsArrChecK.moveNext())
+                if (rsArrChecK.value("t_totalSum") != 0)
+                    resCode = 11;
+                end;
+            end;
+
+            fnsPutInFuncObj(resCode, Int(rs.value("t_PaymentID")), ddoc.InSum, ddoc.Oper, operParm.ApplicationKey, objectId);
+
+            returnObj.state = FUNCOBJ_RESULT_OK;
+            returnObj.errorText = "";
+        end;
+
+        CloseDepFiles();
+        InterDesk_EndDocBunch();
+        setFNCash(FNCash);
+        setFlagCur(FlagCur);
+    else
+        returnObj.state = FUNCOBJ_RESULT_FATAL;
+        returnObj.errorText = "Не найдена запись об аресте";
+    end;
+
+  return returnObj;
+
+OnError( error )
+    returnObj.state = FUNCOBJ_RESULT_FATAL;
+    returnObj.errorText = error.Message;
+    return returnObj;
+end;
+```
+
+---
+
+## Пример 24: `ReadDC`
+
+**Источник:** `Mac/Mbr/swsbpars.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro ReadDC(Stream, Count, MacroFill)
+  var DKFlag;
+  
+  if( StrmGetLexeme(Stream, Count, DKFlag, TS_ALPHA, TL_FIXED, 1))
+    PrintLog(3, "ReadDC: " + DKFlag);
+    SetParm(1, Count); /* запись в 1-й аргумент!*/
+    return ExecMacro2(MacroFill, DKFlag);
+  end;
+```
+
+---
+
+## Пример 25: `WriteCommonPart`
+
+**Источник:** `Mac/Mbr/uf108taxgm.mac`
+**Тип:** `macro`
+**Размер:** 26 строк
+
+```rsl
+  macro WriteCommonPart(xml : object, mes : object)
+    if( MustWriteTaxInfo() )
+      var elem : object = xml.createElement("DepartmentalInfo");
+
+      if(CommonTaxAuthorState)
+        elem.setAttribute("DrawerStatus", CommonTaxAuthorState);
+      end;
+
+      if(not CommonBTTTICode)
+        CommonBTTTICode = "0";
+      end;
+      elem.setAttribute("CBC", CommonBTTTICode );
+
+      if(CommonOKATOCode)
+        elem.setAttribute("OKATO", CommonOKATOCode );
+      end;
+
+      elem.setAttribute("PaytReason",   "0" );
+      elem.setAttribute("TaxPeriod",    "0" );
+      elem.setAttribute("DocNo",        "0" );
+      elem.setAttribute("DocDate",      "0" );
+      elem.appendChild(xml.createTextNode(""));
+
+      mes.appendChild(elem);
+    end;
+  end;
+```
+
+---
+
+## Пример 26: `FindClientByID`
+
+**Источник:** `Mac/Cb/pr_mocur.mac`
+**Тип:** `macro`
+**Размер:** 32 строк
+
+```rsl
+macro FindClientByID(PartyID, INN, Address)
+
+record PtAdress ( adress );
+
+var cINN;
+
+   SetParm(1,"");
+   SetParm(2,"");
+
+   ClearRecord(PtAdress);
+
+   if ( PartyID < 0 )
+      return false;
+   end;
+
+   cINN = GetPartyINN( PartyID, 1 ); /* Длиннный ИНН */
+   SetParm(1,cINN);
+
+   party.PartyID = PartyID;
+   if ( GetEQ(party) )
+      НайтиЮридическийАдресСубъекта(party.PartyID,PtAdress);
+      country.CodeLat3 = PtAdress.Country;
+      if ( GetEq(country) )
+         SetParm(2, MakeAddress());
+      else
+         SetParm(2, MakeAddressWithoutCountry());
+      end;
+   else
+      return false;
+   end;
+   return true;
+end;
+```
+
+---
+
+## Пример 27: `FillOurParm`
+
+**Источник:** `Mac/Cb/pr_mocur.mac`
+**Тип:** `macro`
+**Размер:** 25 строк
+
+```rsl
+macro FillOurParm(Name, Address, Code, Acc)
+
+   record PtAdress ( adress );
+   ClearRecord(PtAdress);
+
+   SetParm(0,"");
+   SetParm(1,"");
+   SetParm(2,"");
+   SetParm(3,"");
+
+   SetParm(0,{Name_Bank});
+   SetParm(2,{MFO_Bank});
+   SetParm(3,{CORAC_BANK});
+   party.PartyID = {OurBank};
+   if ( GetEQ(party) )
+      НайтиЮридическийАдресСубъекта(party.PartyID,PtAdress);
+      country.CodeLat3 = PtAdress.Country;
+      if ( GetEQ(country) )
+         SetParm(1,MakeAddress());
+      else
+         SetParm(1,MakeAddressWithoutCountry());
+      end;
+   end;
+
+end;
+```
+
+---
+
+## Пример 28: `ИспользоватьСводныеПроводки`
+
+**Источник:** `Mac/DLNG/SECUR/sp_carsf.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+MACRO ИспользоватьСводныеПроводки( IsClientAcc:BOOL ):BOOL
+   var Enable, ErrCode;
+
+   if( IsClientAcc )
+            GetRegistryValue( MAKE_CARRY_SUMMARY_CLNT, V_BOOL, Enable, ErrCode );
+         else /*собственные сделки*/
+            GetRegistryValue( MAKE_CARRY_SUMMARY, V_BOOL, Enable, ErrCode );
+         end;
+
+         if( (ErrCode == 0) AND (Enable != 0) )
+            return true;
+         end;
+
+   return false;
+END;
+```
+
+---
+
+## Пример 29: `SelectBranch`
+
+**Источник:** `Mac/CELLS/accrpack.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+macro SelectBranch( Branch, FlagAll )
+
+  Branch = {DepFNCash};
+  FlagAll = false;
+
+  SetParm( 0, Branch );
+  SetParm( 1, FlagAll );
+
+end;
+```
+
+---
+
+## Пример 30: `GetPartyPropertys`
+
+**Источник:** `Mac/Cb/prpocl.mac`
+**Тип:** `macro`
+**Размер:** 48 строк
+
+```rsl
+macro GetPartyPropertys(PartyID,rec,MFO,CorAc,Place)
+file Коды_Субъектов(partcode);
+file Параметры_Банков (bankdprt);
+file Субъекты (party);
+
+    if ( ПолучитьСубъекта (PartyID,rec) != 0 )
+        msgbox("Не найден банк-получатель");
+        return 1;
+    else
+         Коды_Субъектов.PartyID  = rec.PartyID;
+         Коды_Субъектов.CodeKind = 3;
+         If (GetEQ(Коды_Субъектов)) /* Если есть БИК у самого банка, то возвращаем его */
+                SetParm(2, Коды_Субъектов.Code);
+                Параметры_Банков.PartyID = rec.PartyID;
+                if (GetEQ(Параметры_Банков))
+                    SetParm(3, Параметры_Банков.corAcc);
+                else
+                    SetParm(3, "");
+                end;
+         else        /* Если нет, берем вышестоящую организацию и ищем ее БИК*/
+                if ( ПолучитьСубъекта (rec.Superior,rec) != 0 )
+                    SetParm(2, "");
+                    SetParm(3, "");
+                else
+                    Коды_Субъектов.PartyID  = rec.PartyID;
+                    Коды_Субъектов.CodeKind = 3;
+                    If (GetEQ(Коды_Субъектов))
+                        SetParm(2, Коды_Субъектов.Code);
+                    else
+                        SetParm(2, "");
+                    end;
+                end;
+                Параметры_Банков.PartyID = rec.PartyID;
+                if (GetEQ(Параметры_Банков))
+                        SetParm(3, Параметры_Банков.corAcc);
+                else
+                        SetParm(3, "");
+                end;
+          end;
+          Параметры_Банков.PartyID = rec.PartyID;
+/*          if (GetEQ(Параметры_Банков))
+                  SetParm(4, Параметры_Банков.place + " " + rec.Place );
+          else*/
+                  SetParm(4, "");
+/*          end;*/
+    end;
+
+END;
+```
+
+---
+
+## Пример 31: `IsSuchShortNameCln`
+
+**Источник:** `Mac/DLNG/DEPO/dpacvl.mac`
+**Тип:** `macro`
+**Размер:** 45 строк
+
+```rsl
+macro IsSuchShortNameCln( DstNumber, ShortName, IsSuchName, UsrID, UsrNumber )
+  var stat;
+  var bstat;
+  var SaveKeyNumber;
+  var SavePos;
+  var bftext;
+
+
+  SetParm( 2, FALSE );
+  SetParm( 3, 0 );
+  SetParm( 4, -1 );
+  
+  SaveKeyNumber = KeyNum( dpac );
+  SavePos = GetPos(dpac);
+
+  if( SavePos )
+    stat = FindDEPOACbyShortName( dpac, 0, ShortName );
+    if(stat == FALSE)
+      bstat = Status();
+      if(bstat ==4) /* Записи в пользовательском файле нет */
+        stat = TRUE;
+      else
+        println("Ошибка поиска записи в файле dpac.dbt");
+      end;
+    else
+      /* Запись в пользовательском файле нашли */
+      if( dpac.Number != DstNumber ) /* Действительно есть, т.к. не нашего номера */
+        SetParm( 2, TRUE );
+        SetParm( 3, dpac.ID );
+        SetParm( 4, dpac.Number );
+      end;
+    end;
+    if(stat)   
+      KeyNum( dpac, SaveKeyNumber );
+      stat = GetDirect(dpac, SavePos);
+      if(not stat )
+        status(bftext);
+        println( "Ошибка восстановления позиции в файле depoac.dbt, SavePos ="+SavePos+"\n"+BerrText( bftext ) );
+      end;
+    end;
+  else
+    status(bftext);
+    println( "Ошибка сохранения позиции в файле depoac.dbt, ID ="+dpac.ID+"\n"+BerrText( bftext ) );
+    stat = FALSE;
+  end;
+```
+
+---
+
+## Пример 32: `PrintReport`
+
+**Источник:** `Mac/Cb/pmmassrep.mac`
+**Тип:** `macro`
+**Размер:** 44 строк
+
+```rsl
+MACRO PrintReport()
+
+  var select :string = "select rm.t_Number, rm.t_Date, db.t_BankCode, pm.t_PayerAccount, cr.t_BankCode, pm.t_ReceiverAccount, "
+                              "t.t_ErrorStatus, decode( nvl(t.t_ErrorMessage, CHR(1)), CHR(1), msg.t_Contents, t.t_ErrorMessage ) "
+                       "from doprtemp_tmp  t, "
+                            "dpmpaym_dbt   pm, "
+                            "dpmrmprop_dbt rm, "
+                            "dpmprop_dbt   db, "
+                            "dpmprop_dbt   cr, "
+                            "dbank_msg     msg "
+                       "where pm.t_PaymentID = t.t_OrderID "
+                         "and rm.t_PaymentID = pm.t_PaymentID "
+                         "and db.t_PaymentID = pm.t_PaymentID "
+                         "and db.t_DebetCredit = 0 "
+                         "and cr.t_PaymentID = pm.t_PaymentID "
+                         "and cr.t_DebetCredit = 1 "
+                         "and msg.t_Number(+) = t.t_ErrorStatus "
+                        "order by pm.t_PaymentID";
+
+    [
+        Результаты массовой обработки документов
+
+     ┌─────────┬──────────┬─────────────────┬─────────────────────┬─────────────────┬─────────────────────┬────────────────────────────────────────┐
+     │  Номер  │ Дата     │ Банк плательщика│ Счет плательщика    │ Банк получателя │ Счет получателя     │ Результат обработки                    │
+     ├─────────┼──────────┼─────────────────┼─────────────────────┼─────────────────┼─────────────────────┼────────────────────────────────────────┤ ];
+
+  var rs:RsdRecordset = execSQLselect( select );
+  var result:string = "";
+  var total_success:integer = 0, total_error:integer = 0;
+
+  while( rs.moveNext() )
+    
+    if( not rs.value(6) )
+      result = "Успешно обработан";
+      total_success = total_success + 1;
+    else
+      result = string( rs.value(6), " ", rs.value(7) );
+      total_error = total_error + 1;
+    end;
+
+    [│######## │##########│#################│#####################│#################│#####################│########################################│ ]
+    ( rs.value(0):r, date(rs.value(1)):l, rs.value(2):l, rs.value(3):l, rs.value(4):l, rs.value(5):l, result:l:w );
+
+  end;
+```
+
+---
+
+## Пример 33: `FSSP_IsPayFmControlEnabled`
+
+**Источник:** `Mac/Cb/fssp_lib.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+macro FSSP_IsPayFmControlEnabled()
+    var flag = false;
+    GetRegistryValue("COMMON\\ПАРАМЕТРЫ ПРОЦЕДУР\\ГРУППОВАЯ ОПЛАТА\\ПРОВЕРЯТЬ_ФМ", V_BOOL, flag);
+    return flag;
+end;
+```
+
+---
+
+## Пример 34: `FX_KvitRequirement`
+
+**Источник:** `Mac/DLNG/FOREX/fxpayreq.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+MACRO FX_KvitRequirement(fd)
+  var TranModeReq, KvitMode,
+      stat = 0, i = 0, paym,
+      ReqAccount = "",
+      MaxiDate = Date(0,0,0),   
+      CurCom, CurReq;
+
+  fd.SetCurrency(CurCom, CurReq);
+  GetRegistryValue("КОНВЕРСИОННЫЕ ОПЕРАЦИИ\\ИСПОЛЬЗОВАНИЕ ТС\\ИСПОЛНЕНИЕ ТРЕБОВАНИЙ",
+                   V_INTEGER, TranModeReq, stat);
+  
+  if (not stat)
+    GetRegistryValue("КОНВЕРСИОННЫЕ ОПЕРАЦИИ\\РЕЖИМ КВИТОВКИ",
+                     V_INTEGER, KvitMode, stat);
+  end;
+```
+
+---
+
+## Пример 35: `УВ_ПолучитьСуммуДисконтаНаДату`
+
+**Источник:** `Mac/DLNG/VA/vamisc.mac`
+**Тип:** `macro`
+**Размер:** 43 строк
+
+```rsl
+MACRO УВ_ПолучитьСуммуДисконтаНаДату(fd, VDate)
+  var bnr = fd.GetBnr();
+  var leg = fd.GetLeg();
+  var tick = fd.GetTick();
+  var P = 0, T = 0;
+  var Днач = УВ_ПолучитьСуммуНачальногоДисконта(bnr, leg, VDate);
+  var Драсч = $0;
+  var DiscKind = 0, err = 0;
+  var IncomeDateType = DL_INCOMEDATETYPE_PLUSONE;
+
+  if(Днач > $0)
+    T = VS_GetTermCircDate(bnr, leg); // срок обращения векселя (определяется от даты выпуска до плановой даты погашения включительно)
+
+    if(T > 0)
+      GetRegistryValue("ДОВЕРИТЕЛЬНОЕ УПРАВЛЕНИЕ\\РАБОТА С НЕЭМИССИОННЫМИ ЦБ\\НАЧИСЛЕНИЕ ДИСКОНТА", V_INTEGER, DiscKind, err);
+
+      if((bnr.rec.BCTermFormula == VS_TERMF_DURING) and (bnr.rec.BackOffice == "А"/*ДУ*/) and (not err) and (not DiscKind)) // по минимальному сроку
+        if(bnr.rec.BCPresentationDate > ZeroDate)
+          P = VDate - bnr.rec.BCPresentationDate;
+        end;
+      else
+        P = VDate - VS_GetStartDate(bnr, leg);
+      end;
+
+      if(P > 0)
+        if(bnr.rec.BCTermFormula != VS_TERMF_INATIME)
+          if(DL_GetStartIncomeDateType(@IncomeDateType) and (IncomeDateType == DL_INCOMEDATETYPE_CBR))
+            P = P + 1; // чтобы учесть дату начала, которая была потеряна при вычитании
+
+            if((tick != null) or (VDate >= DL_GetBnrPlanRepayDate(bnr, leg)))
+              P = P - 1; // в дату погашения саму дату погашения учитывать не нужно
+            end;
+          end;
+        end;
+
+        if(P > T)
+          P = T;
+        end;
+
+        Драсч = Round(Днач * P / T, 2); // нужно до 2-х знаков здесь, в противном случае накапливается ошибка
+      end;
+    end;
+  end;
+```
+
+---
+
+## Пример 36: `GetFormFields`
+
+**Источник:** `Mac/DLNG/TRUST/TSCardAnAccRep_Form.mac`
+**Тип:** `macro`
+**Размер:** 10 строк
+
+```rsl
+  MACRO GetFormFields()
+     TSCardAnAccRepFormData.ReportDate     = GetFieldValue( PNFLD_CARD_REPORT_DATE      );
+     TSCardAnAccRepFormData.OFBU           = GetFieldValue( PNFLD_CARD_OFBU             );
+     TSCardAnAccRepFormData.OFBU_Number    = GetFieldValue( PNFLD_CARD_OFBU_NUMBER      );
+     TSCardAnAccRepFormData.OFBU_Name      = GetFieldValue( PNFLD_CARD_OFBU_NAME        );
+     TSCardAnAccRepFormData.IDDU           = GetFieldValue( PNFLD_CARD_IDDU             );
+     TSCardAnAccRepFormData.PrevReportDate = GetFieldValue( PNFLD_CARD_PREV_REPORT_DATE );
+     TSCardAnAccRepFormData.Contract       = GetFieldValue( PNFLD_CARD_CONTRACT         );
+     TSCardAnAccRepFormData.Trustor        = GetFieldValue( PNFLD_CARD_TRUSTOR          );
+  END;
+```
+
+---
+
+## Пример 37: `MatchPayment`
+
+**Источник:** `Mac/BOOK/PFRMatchPayment.mac`
+**Тип:** `macro`
+**Размер:** 28 строк
+
+```rsl
+macro MatchPayment( payment )
+  CopyRSetToFBuff( recTrnPaym, payment );
+
+  var rdd;
+  var stat = FindRDDByPayment( recTrnPaym, rdd );
+ 
+  if( stat )
+    var inn, kpp;
+    var rddCount = 0;
+    // Найденные записи проверить на совпадение ИНН/КПП
+    while( stat )
+      GetINNKPP( rdd.value("t_PayerPartyId"), rdd.value("t_PayerTempPartyId"), inn, kpp );
+      if( (inn == recTrnPaym.rec.PayerINN) and (kpp == recTrnPaym.rec.PayerKPP) )
+        rddCount = rddCount + 1;
+        DocId = rdd.value("t_documentId");
+        DocNumber = SQL_ConvTypeStr(rdd.value("t_documentNumber"));
+        DocAmount = rdd.value("t_DebitAmount");
+        PaymentId = int(SQL_ConvTypeStr(rdd.value("t_incomePaymentId")));
+      end;
+      stat = rdd.moveNext();
+    end;
+    // Установка связи между п/п и входящим РДД
+    if( rddCount == 1 )
+      stat = ProcessTrn(null, "SetMatchingTRN");
+    else
+      stat = false;
+    end;
+  end;
+```
+
+---
+
+## Пример 38: `Блок`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsprcexp.mac`
+**Тип:** `block`
+**Размер:** 10 строк
+
+```rsl
+        m_Month = m_Form.GetFieldValue( PNFLD_PRCEXP_MONTH );
+        m_Year = m_Form.GetFieldValue( PNFLD_PRCEXP_YEAR );
+        m_BeginDate = Date( 1, m_Month, m_Year );
+        if( m_Month == 12 )
+            m_EndDate = Date( 31, m_Month, m_Year );
+        else
+            m_EndDate = Date( 1, m_Month + 1, m_Year ) - 1;
+        end;
+        m_FIID = m_Form.GetFieldValue( PNFLD_PRCEXP_CURCODE );
+        m_Department = m_Form.GetFieldValue( PNFLD_PRCEXP_DEPARTCODE );
+```
+
+---
+
+## Пример 39: `Блок`
+
+**Источник:** `Mac/DLNG/dlclordco_form.mac`
+**Тип:** `block`
+**Размер:** 25 строк
+
+```rsl
+  if( Cmd == DLG_INIT )
+     if( FldRealValue == null )
+        FldRealValue = -1;
+     end;
+     if( FldRealValue <= 0 )
+        FldShowValue = STR_ALLVALUE;
+        pThis.SetLinkedValue( H_CLIENT_NAME, "");
+        SetServKind( pThis, FldRealValue );
+     else
+        if( not ПолучитьСубъекта( FldRealValue, Party ) )
+            FldShowValue = GetPartCode(FldRealValue);
+            pThis.SetLinkedValue( H_CLIENT_NAME, Party.rec.ShortName);
+            SetServKind( pThis, FldRealValue );
+        end;
+     end;
+  elif( (Cmd == DLG_KEY) AND (Key == KEY_SPACE) )
+     FldRealValue = -1;
+     FldShowValue = STR_ALLVALUE;
+     pThis.SetLinkedValue( H_CLIENT_NAME, "" );
+     pThis.SetLinkedValue( H_CONTR, null );
+     SetServKind( pThis, FldRealValue );
+  elif( (Cmd == DLG_KEY) AND (Key == KEY_F3) )
+     if( pThis.GetFieldValue( PNFLD_DLCLORDCO_IsBO ) == "X" )
+        ServKind[ServKind.Size] = BO;
+     end;
+```
+
+---
+
+## Пример 40: `ОнлайнРегистрацияКлиентовНаБирже`
+
+**Источник:** `Mac/DLNG/dlcontrfunc.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+macro ОнлайнРегистрацияКлиентовНаБирже()
+  var ErrCode, RetMode;
+  GetRegistryValue("SECUR\\ОНЛАЙН РЕГИСТРАЦИЯ КЛ НА БИРЖЕ", V_BOOL, RetMode, ErrCode);
+  return RetMode and (ErrCode == 0);
+end;
+```
+
+---

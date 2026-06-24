@@ -616,3 +616,993 @@ MACRO PrintStepDocs (
 
 ---
 
+## Пример 16: `SEIEM_QRadarSend`
+
+**Источник:** `Mac/Cb/siem_send.mac`
+**Тип:** `macro`
+**Размер:** 17 строк
+
+```rsl
+macro SEIEM_QRadarSend(pProtocol, pAdress, pPort, pCert, pMessage, oErrMsg)
+    var stat = true;
+    var ConnectParams;
+
+    stat = RsSyslogConnect(pProtocol, pAdress, pPort, pCert, ConnectParams, oErrMsg);
+    if (stat)
+        stat = RsSyslogWrite(ConnectParams, pMessage);
+        RsSyslogClose(ConnectParams);
+    end;
+    
+    if (not stat)
+        msgbox("SEIEM_ConnectParams.LastError: ", ConnectParams.LastError);
+        msgbox("SEIEM_ConnectParams.LastDetailedError: ", ConnectParams.LastDetailedError);
+    end;
+    
+    return stat;
+end;
+```
+
+---
+
+## Пример 17: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/VEKSEL/vstrsrok.mac`
+**Тип:** `macro`
+**Размер:** 110 строк
+
+```rsl
+MACRO ExecuteStep(Buffer, FirstDoc, DocKind, ID_Operation, ID_Step)
+var
+    fd, СчетДебет = "", СчетКредит = "", СуммаПр = 0, BankName = "", ok, КатегорияУчета = "";
+
+    var СуммаНачисленныхПроцентов = 0.0, СуммаНачисленногоДисконта = 0.0;
+    var Валюта_Проводки = -1, ВалютаУчета;
+    var PrDsParm, IncGroup;
+
+    SetBuff( bnr, FirstDoc );
+    
+    if( srvdoc.rec.ExecutionDate > {curdate} )
+       MsgBox ("Преждевременное выполнение шага запрещено.");
+       return 1;
+    end;
+
+    if(bnr.BCTermFormula != VS_TERMF_ATSIGHT)
+        /* формулировка срока не "по предъявлении" */;
+        return 0;
+    elif(Index(bnr.BCState, "С") != 0)
+        msgbox ("Вексель уже перенесли по сроку");
+        return 1;
+    elif(Index(bnr.BCState, "И") != 0)
+        msgbox ("Вексель уже перенесли к исполнению");
+        return 1;
+    elif(not НайтиЦеновыеУсловия(leg, bnr.BCID))
+        msgbox ("Не найдены ценовые условия векселя ", bnr.BCID,
+                "|серия ", bnr.BCSeries, " номер ", trim(bnr.BCNumber)
+        );
+        return 1;
+    end;
+    
+    fd = VSBannerFD (bnr, leg);
+    ВалютаУчета = fd.ОпределитьВалютуУчета();
+
+
+    if(not DL_IsOurBanner(bnr.Issuer))
+      IncGroup = VACollectIncome(srvdoc.rec.ExecutionDate);
+      PrDsParm = VAPrDsParm(@IncGroup, ID_Operation, ID_Step);
+      
+      if(ВалютаУчета != leg.rec.PFI) //ВУ != ВН
+        if(ExecMacroFile("vaovernvpi.mac", "ПереоценкаНВПИВекселя", bnr.BCID, srvdoc.rec.ExecutionDate, IncGroup))
+          return 1;
+        end;
+      end;
+
+      if(ExecMacroFile("vaprdslib.mac", "ВыполнитьДоначислениеОднойЦБ", fd.GetBnr(), fd.GetLeg(), null, null, null, PrDsParm))
+        return 1;
+      end;
+    end;
+
+    if(DL_IsOurBanner(bnr.Issuer))
+        КатегорияУчета = "Наш вексель";//Балансовая стоимость векселя
+        СчетДебет = OpenBnrAccount(КатегорияУчета, fd, false);
+        СчетКредит = OpenBnrAccount(КатегорияУчета, fd, true);
+        Валюта_Проводки = fd.ОпределитьВалютуУчета();
+        if(not ПолучитьОстаток(СуммаПр, СчетДебет, Валюта_Проводки, srvdoc.rec.ExecutionDate))
+          return 1;
+        end;
+        BankName = НашБанк();
+    else
+        КатегорияУчета = "Учтенные векселя";
+        СчетКредит = OpenBnrAccount(КатегорияУчета, fd, false);
+        СчетДебет = OpenBnrAccount(КатегорияУчета, fd, true);
+        if(not GetLastSum(bnr.BCID, srvdoc.rec.ExecutionDate, @СуммаПр, ВалютаУчета))
+           return 1;
+        end;
+        BankName = GetBankName(bnr.Issuer);
+        Валюта_Проводки = ВалютаУчета;
+    end;
+    
+    if((СчетКредит == "") or (СчетДебет == ""))
+        msgbox ("Ошибка при определении счета");
+        return 1;
+    elif(СчетДебет == СчетКредит)
+        msgbox ("Вексель ", bnr.BCID,
+                "|серия ", bnr.BCSeries, " номер ", trim(bnr.BCNumber),
+                "|не надо переносить по сроку");
+        return 1;
+    elif(Проводка(СчетДебет, СчетКредит, СуммаПр,
+                  String("Перенос балансовой стоимости векселя ", BankName,
+                         " серия " , bnr.BCSeries, " № ", trim(bnr.BCNumber),
+                         " на счет \"до востребования\""),
+                  null, null,
+                  Валюта_Проводки, null, null,                
+                  srvdoc.rec.ExecutionDate))
+        return 1;
+    elif (MakeDiscCarry(fd))
+        return 1;
+    else
+        if(DL_IsOurBanner(bnr.Issuer))
+           ok = ИзменитьВексель(bnr.BCID,srvdoc.rec.ValueDate, "addbcstate", "С");
+        else
+           ok = ИзменитьУчтенныйВексель(bnr.BCID, srvdoc.rec.ValueDate, "addbcstate", "С");
+        end;
+        if(not ok)
+           msgbox("Ошибка при установке для векселя ", bnr.BCID,
+                  "|серия ", bnr.BCSeries, " номер ", trim(bnr.BCNumber),
+                  "|признака переноса по срочности");
+           return 1;
+        end;
+    end;
+
+    if( not(DL_IsOurBanner(bnr.Issuer)) )
+      if(ExecMacroFile("vaprdslib.mac", "ПереносНачисленныхПроцентовИДисконтаПоВекселю", bnr, leg.rec, srvdoc.rec.ExecutionDate, srvdoc.rec.ValueDate, IncGroup))
+        return 1;
+      end;
+    end;
+
+    return 0;
+END;
+```
+
+---
+
+## Пример 18: `PrintStepDocs`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsoverv.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+MACRO PrintStepDocs (
+                ID_Operation,  // Номер экземпляра операции 
+                ID_Step,       // Номер шага операции 
+                Kind_Operation,// Вид операции 
+                KindStep)      // Вид шага операции 
+
+    if(not Печать(false, "vsrep", ID_Operation, ID_step, isOprMultiExec, "СП")) // Счета, Проводки 
+      msgbox("Нет документов для печати");
+      exit(1);
+    end;
+
+    return 1;
+END;
+```
+
+---
+
+## Пример 19: `pcmt_Done`
+
+**Источник:** `Mac/DLNG/MMARK/mmactx.mac`
+**Тип:** `macro`
+**Размер:** 39 строк
+
+```rsl
+MACRO pcmt_Done( p_filename )
+
+var MM_WordApp, RTF_PATH, dot_filename,
+    txtRegistryPath = "BANK_INI\\ОБЩИЕ ПАРАМЕТРЫ\\ДИРЕКТОРИИ\\TEXTDIR";
+
+    if( p_filename == "" ) /* pcmt_Do отработал с ошибкой */
+       /*  msgbox вряд ли нужен, сообщения выдает pcmt_Do */
+       return FALSE;
+    end;
+   
+    /* пакетный выпуск */
+    if( isOprMultiExec() and (МассоваяПечатьПодтверждений == true) )
+       MMCMT_WordFiles[ ASize(MMCMT_WordFiles) ] = p_filename;
+   /*    MMCMT_WordFilesPtr = MMCMT_WordFilesPtr + 1;*/
+       return TRUE;
+    end;
+   
+    MM_WordApp = ActiveX( "Word.Application", null, TRUE );
+   
+    if (IsStandAlone) /*Двухзвенка*/    
+       MM_WordApp.Visible = TRUE;
+       MM_WordApp.Documents.Add( p_filename, FALSE );
+    else /*Трехзвенка*/
+       MM_WordApp.Quit;
+       if (not CopyFile (p_filename,"$txtfile\\tmprep.rtf"))
+           MsgBox ("Ошибка при передаче файла на терминал");
+           return FALSE;
+       else
+           if(MM_SetRegistryPath(txtRegistryPath, RTF_PATH) == 0)
+              // получит полный путь
+              RTF_PATH = MMCMT_processPath(RTF_PATH);
+              dot_filename = RTF_PATH + "\\tmprep.rtf";
+              CallRemoteRsl ("mmshrp.mac" ,"ShowReport", dot_filename);
+           end;
+       end;
+    end;
+   
+    return TRUE;
+END;
+```
+
+---
+
+## Пример 20: `ExecuteStep`
+
+**Источник:** `Mac/LC/lc004_10.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+MACRO ExecuteStep()
+  var stat : integer = 0;
+  var ShowRlsPanel : bool = true;
+  Array Text, Buttons;
+
+  if(LCDocObj.IsEmptyLcreimb())
+    msgbox("Не задан способ рамбурсирования");
+    return 1;
+  end;
+```
+
+---
+
+## Пример 21: `PrintStepDocs`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsr020pm.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+MACRO PrintStepDocs (
+                ID_Operation,  /* Номер экземпляра операции */
+                ID_Step,       /* Номер шага операции */
+                Kind_Operation,/* Вид операции */
+                KindStep)      /* Вид шага операции */
+
+    if(not Печать(false, "vsrep", ID_Operation, ID_step, isOprMultiExec, "СПО")) /* Счета, Проводки, мем.Ордера */
+      msgbox("Нет документов для печати");
+      exit(1);
+    end;
+
+    return 1;
+END;
+```
+
+---
+
+## Пример 22: `FrzChOutStart`
+
+**Источник:** `Mac/Cb/fm_frzchkout.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro FrzChOutStart()
+  /* определим код территориального учреждения по ОКАТО */
+/*
+  KTU = FM_GetKTU();
+  if( Trim(KTU) == "" )
+    msgbox( "Не определен код территории учреждения по ОКАТО" );
+    return 1;
+  end;
+```
+
+---
+
+## Пример 23: `TreatBranch`
+
+**Источник:** `Mac/DEPOSITR/upldstat.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+macro TreatBranch;
+
+  if(OpenTrFiles(ddep.rec.Code))
+    IsFirstForBranch = true;
+    TreatStaticAccsForBranch(0, SA_STATIC);
+    TreatStaticAccsForBranch(0, SA_UNITED);
+    TreatStaticAccsForBranch(1, SA_STATIC);
+    TreatStaticAccsForBranch(1, SA_UNITED);
+    if(not ErrFlag)
+      DeleteFiles;
+    else
+      MsgBox("Ошибки при загрузке неподвижных/объединенных счетов|для филиала №",
+       ddep.rec.Name, " |Повторите процедуру еще раз");
+    end;
+  end;
+```
+
+---
+
+## Пример 24: `ФункцияПользователя_ЗаявлениеПогашения`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsscp.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+MACRO ФункцияПользователя_ЗаявлениеПогашения(Режим)
+    msgbox(String("Выполняется макрофункция с именем|",
+                  "ФункцияПользователя,|",
+                  "которая определена в файле|",
+                  "vsscp.mac|",
+                  "Заявление на погашение"));
+    return 0;
+END;
+```
+
+---
+
+## Пример 25: `Crit_Main`
+
+**Источник:** `Mac/DEPOSITR/critacpt.mac`
+**Тип:** `macro`
+**Размер:** 76 строк
+
+```rsl
+macro Crit_Main( _Type, _Prm, _rez, _trast, _income, _age, _sum, _Desc, _Spec, _AddrDoc, _AddrTrast )
+    var accept = TRUE;
+    var fMake  = FALSE;
+
+    Message( " Ожидание разрешения на выполнение рискованного действия. ~Ctrl-Break~ - прервать" );
+
+    if (StrFor(GetProgramID) == "П")
+        return TRUE;
+    end;
+
+    /* Чтение записи о Филиале */
+    fil.rec.FNCash = FNCash;
+    if ( fil.GetEQ()  AND  fil.rec.FlagCritAdd )
+        fAdd = TRUE;
+    end;
+
+    SetBuff( ro, _Prm );
+
+    sDesc = _Desc;
+
+    ClearRecord( depDoc );
+    if ( _AddrDoc != NULL )
+        SetBuff( depDoc, _AddrDoc );
+    end;
+
+    // Проверки для видов вызова макроса.
+    if   ( _Type == CM_DEP )     // Вкладные операции, кроме закрытия и наследства.
+        fMake = check_Dep( ro.IsCur, ro.Operation, _rez, _trast, _income, _sum );
+    elif ( _Type == CM_CLOSE )   // Операции закрытия счета.
+        fMake = check_Close( _trast, _rez, _sum, depDoc );
+    elif ( _Type == CM_WILL )    // Выплаты наследникам ( операция 99 ).
+        fMake = check_Will();
+    elif ( _Type == CM_NOTFIN )  // Нефинансовые операции.
+        if ( _AddrTrast != NULL )
+            SetBuff( trast, _AddrTrast );
+        end;
+        fMake = check_NotFin( ro.Operation );
+    elif ( _Type == CM_STORN_OP )  // Сторнирование операции.
+        if ( check_Storn( _Desc, _Spec, ro.ApplicationKey, ro.ApplicationKind, _Type, depDoc ) )
+            return TRUE;
+        else
+            msgBox( "Действие отклонено." );
+            return FALSE;
+        end;
+    elif ( _Type == CM_DELETE_OP )  // Удаление операции.
+        if ( check_Del( _Desc, _Spec, ro.ApplicationKey, ro.ApplicationKind, _Type, depDoc ) )
+            return TRUE;
+        else
+            msgBox( "Действие отклонено." );
+            return FALSE;
+        end;
+    end;
+
+    // Несовершеннолетний клиент.
+    if ( _age < 18 )
+        fMake = TRUE;
+    end;
+
+    // Вызов процедуры контроля критических (рискованных) действий.
+    if ( fMake )
+        if (_Type == CM_DEP)
+            accept = CritWaitAcceptEx( CM_DEP, sDesc, StrFor(0), depDoc.iApplicationKind, depDoc.ApplicationKey, null, null, null, depDoc );
+        elif ((_Type == CM_CLOSE) or (_Type == CM_WILL))
+            accept = CritWaitAcceptEx( CM_CLOSE, sDesc, depDoc, depDoc.iApplicationKind, depDoc.ApplicationKey, null, null, null, depDoc );
+        else
+            accept = CritWaitAcceptEx( 0, sDesc, StrFor(0));
+        end;
+    end;
+
+    if ( NOT accept )
+        msgBox( "Действие отклонено." );
+    end;
+
+    return accept;
+
+end;
+```
+
+---
+
+## Пример 26: `DL_FldProc_AvrKindFltr`
+
+**Источник:** `Mac/DLNG/SECUR/ReservReg_Form.mac`
+**Тип:** `macro`
+**Размер:** 44 строк
+
+```rsl
+MACRO DL_FldProc_AvrKindFltr( pThis:DL_CPanel, Cmd:INTEGER, Key:INTEGER, FldShowValue:@VARIANT, FldRealValue:@VARIANT ):INTEGER
+  VAR Fininstr, AvrID, IsEmiss, IsNotEmiss, RepSubKind;
+  VAR WhereCond = " (( RSB_FIInstr.FI_AvrKindsEQ("+FIKIND_AVOIRISS+", "+AVOIRISSKIND_SHARE+", t_AvoirKind) > 0 " +
+                  "      OR RSB_FIInstr.FI_AvrKindsEQ("+FIKIND_AVOIRISS+", "+AVOIRISSKIND_DEPOSITORY_RECEIPT+", t_AvoirKind) > 0 )" +
+                  "      OR RSB_FIInstr.FI_AvrKindsEQ("+FIKIND_AVOIRISS+", "+AVOIRISSKIND_BOND+", t_AvoirKind) > 0 )";
+  RepSubKind = pThis.GetLinkedValue(H_PNFLD_SUBKIND);                  
+  //pThis.GetFieldValue(PNFLD_RESERVREG_SUBKIND, @svSubkind, @rvSubkind); 
+
+  if( Cmd == DLG_INIT )
+     if( FldRealValue == null )
+        FldRealValue = -1;
+     end;
+     if( FldRealValue <= 0 )
+        FldShowValue = STR_ALLVALUE;
+     else
+        DL_GetAvrKindName( FIKIND_AVOIRISS, FldRealValue, null, @FldShowValue );
+     end;
+  elif( Cmd == DLG_CHANGEVALUE ) /*значение поля было изменено*/
+
+     if( pThis.ExistField(DL_PNFLD_AVRCODE) )
+        if( (FldRealValue == null) OR (FldRealValue < 0 ) )
+           pThis.SetLinkedValue( DL_PNFLD_AVRCODE, -1 ); /*скинуть поле*/
+        else
+           AvrID = pThis.GetLinkedValue(DL_PNFLD_AVRCODE);
+           if( (AvrID != null) AND (AvrID > 0) )
+              Fininstr = TRecHandler( "fininstr.dbt" );
+              if( ПолучитьФинИн( AvrID, Fininstr) OR (FldRealValue != Fininstr.rec.AvoirKind) )
+                 pThis.SetLinkedValue( DL_PNFLD_AVRCODE, -1 ); /*скинуть поле*/
+              end;
+           end;
+        end;
+     end;
+  elif( (Cmd == DLG_KEY) AND (Key == KEY_SPACE) ) 
+     FldRealValue = -1;
+     FldShowValue = STR_ALLVALUE;
+  elif( (Cmd == DLG_KEY) AND (Key == KEY_F3)) /*Вызов листалки и заполнение FldShowValue и FldRealValue*/
+     if(RepSubKind == RESERVREG_0801)
+        WhereCond = " ( RSB_FIInstr.FI_AvrKindsEQ("+FIKIND_AVOIRISS+", "+AVOIRISSKIND_SHARE+", t_AvoirKind) > 0 "
+                          + "      OR RSB_FIInstr.FI_AvrKindsEQ("+FIKIND_AVOIRISS+", "+AVOIRISSKIND_DEPOSITORY_RECEIPT+", t_AvoirKind) > 0 )";
+     elif(RepSubKind == RESERVREG_0802)
+        WhereCond = "  RSB_FIInstr.FI_AvrKindsEQ("+FIKIND_AVOIRISS+", "+AVOIRISSKIND_BOND+", t_AvoirKind) > 0 ";
+     end;
+     DL_ListAvrKinds( FIKIND_AVOIRISS, @FldShowValue, @FldRealValue, pThis.CurrentFldX(), pThis.CurrentFldY(), WhereCond );
+  end;
+```
+
+---
+
+## Пример 27: `PrintStepDocs`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsv024rp.mac`
+**Тип:** `macro`
+**Размер:** 26 строк
+
+```rsl
+MACRO PrintStepDocs (
+                ID_Operation,  /* Номер экземпляра операции */
+                ID_Step,       /* Номер шага операции */
+                Kind_Operation,/* Вид операции */
+                KindStep)      /* Вид шага операции */
+
+/* Пример использования внешнего массива с назначением платежей.
+   Смотри ф. RPS() в файле vsprint.mac
+  var PurposeExt=TArray;
+      PurposeExt[0] = PM_PURP_VEKSELDRAW;
+      PurposeExt[1] = PM_PURP_PAY_DEBT;
+      PurposeExt[2] = PM_PURP_TAXINCOME_NJ;
+*/
+    /* распоряжение на открытие счетов */
+    /* распоряжение на выполнение проводок */
+    /* МО по выдаче */
+    /* распоряжение на банковский валютный платеж */
+    /* распоряжение на клиентский валютный платеж */
+    /* распоряжение на перечисление средств */
+    if(not Печать(false, "vsrep", ID_Operation, ID_step, isOprMultiExec, "СПОБКS"))
+      msgbox("Нет документов для печати");
+      exit(1);
+    end;
+
+    return 1;
+END;
+```
+
+---
+
+## Пример 28: `PrintStepDocs`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsv010in.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+MACRO PrintStepDocs(
+                ID_Operation,  /* Номер экземпляра операции */
+                ID_Step,       /* Номер шага операции */
+                Kind_Operation,/* Вид операции */
+                KindStep)      /* Вид шага операции */
+
+   if(not Печать(false, "vsrep", ID_Operation, ID_step, isOprMultiExec, "СПО")) /* Счета, Проводки, мем.Ордера */
+      msgbox("Нет документов для печати");
+      exit(1);
+   end;
+
+   return 1;
+END;
+```
+
+---
+
+## Пример 29: `PrintStepDocs`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsi075.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+MACRO PrintStepDocs (
+                ID_Operation,  /* Номер экземпляра операции */
+                ID_Step,       /* Номер шага операции */
+                Kind_Operation,/* Вид операции */
+                KindStep)      /* Вид шага операции */
+
+    if(not Печать(false, "vsrep", ID_Operation, ID_step, isOprMultiExec, "СП")) /* Счета, Проводки */
+      msgbox("Нет документов для печати");
+      exit(1);
+    end;
+
+    return 1;
+END;
+```
+
+---
+
+## Пример 30: `OpScUserEventPan`
+
+**Источник:** `Mac/Cb/opscuser.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+macro OpScUserEventPan(dlg, cmd, id, key)
+    if(cmd == DLG_INIT)
+        NewOper = false;
+        
+        StdInit(dlg, cmd, id, key);
+        UpdateFields(dlg);
+        DisableFields(dlg);
+    end;
+end;
+```
+
+---
+
+## Пример 31: `printReportRSF`
+
+**Источник:** `Mac/DLNG/MMARK/mmrprorl2.mac`
+**Тип:** `macro`
+**Размер:** 25 строк
+
+```rsl
+MACRO printReportRSF(p_VD,  /* параметры для печати (всегда определены) */
+                   p_DDirection,  p_fiid, p_ExcludeFI, p_MDirection, /* параметры для расчета, м.б. неопред. */
+                   p_PartyCtgID,  p_PartyCtgAttrID,
+                   p_PortfKindID, p_PortfKindAttrID )
+var grp = TReportsGroup();
+
+   /* Считать переданные параметры в глобальные переменные.
+      Если какие-либо параметры не были заданы, они должны быть == 0 */
+   rp_VD              = p_VD;
+   rp_DDirection      = p_DDirection;
+   rp_FI              = p_fiid;
+   rp_ExcludeFI       = p_ExcludeFI;
+   rp_MDirection      = p_MDirection;
+   rp_PartyCtgID      = p_PartyCtgID;
+   rp_PartyCtgAttrID  = p_PartyCtgAttrID;
+   rp_PortfKindID     = p_PortfKindID;
+   rp_PortfKindAttrID = p_PortfKindAttrID;
+
+   if(PrintBody(grp, p_VD, p_fiid) == true)
+      grp.Print( TRUE );
+   else
+      msgbox( "Нет данных, удовлетворяющих заданной фильтрации." );
+   end;
+
+END;
+```
+
+---
+
+## Пример 32: `Authorization`
+
+**Источник:** `Mac/DLNG/ws_md_GetRates.mac`
+**Тип:** `macro`
+**Размер:** 16 строк
+
+```rsl
+  MACRO Authorization()
+    var stat = SUCCES;
+    _tokenKey = GetTokenKeyFromCache();
+
+    if(_tokenKey == "")
+      var resp = GetTokenRequest();
+      if (resp != "")
+        stat = GetTokenKey(resp);
+      else
+        msgbox("Ошибка авторизации на веб-сервисе.");
+        stat = AUTHOR_FAULT;
+      end;
+
+    end;
+    return stat;
+  END;
+```
+
+---
+
+## Пример 33: `Блок`
+
+**Источник:** `Mac/DLNG/VA/vacalcreg_form.mac`
+**Тип:** `block`
+**Размер:** 21 строк
+
+```rsl
+PRIVATE MACRO FldProc_RadioReserveNo( pThis:DL_CPanel, Cmd:INTEGER, Key:INTEGER, FldShowValue:@VARIANT, FldRealValue:@VARIANT ):INTEGER
+  if( Cmd == DLG_INIT )
+     if( FldRealValue == null ) /*инициализация по умолчанию*/
+        FldRealValue = UNSET_CHAR;
+     end;
+     FldShowValue = FldRealValue;
+  elif( Cmd == DLG_CHANGEVALUE )
+     FldRealValue = FldShowValue;
+     if (FldShowValue == SET_CHAR)
+       pThis.SetLinkedValue( H_RADIO_RESERVE_YES   , UNSET_CHAR);
+       pThis.SetLinkedValue( H_RADIO_RESERVE_ONLYRES, UNSET_CHAR);
+     end;
+  elif( Cmd == DLG_KEY )
+     if( Key == KEY_SPACE )
+        if( FldRealValue != SET_CHAR )
+           FldShowValue = FldRealValue = SET_CHAR;
+        end;
+     end;
+  end;
+  return CM_DEFAULT;
+END;
+```
+
+---
+
+## Пример 34: `ПроводкаПодОтчет`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsfmotls.mac`
+**Тип:** `macro`
+**Размер:** 67 строк
+
+```rsl
+MACRO ПроводкаПодОтчет(fmo, StepDate, ТребуетсяСписание)
+VAR
+    Дебет, Кредит,
+    Сумма = 0,
+    Purpose,
+    PurposeOut,
+    EnumStr,
+    FmordFd,
+    ResponsName = "",
+    i = 0,
+    stat = 0;
+
+    EnumStr = VS_GetBlanksEnumStr(fmo.FrmOrdId, Сумма);
+
+    if(fmo.ResponsPerson > 0)
+      ResponsName = PartyName(fmo.ResponsPerson);
+    end;
+
+    Purpose = String("Под отчет ", ResponsName,
+                     " бланки векселей ", НашБанк(), " ",
+                     EnumStr,
+                     " (в кол-ве ", Сумма, " шт.)"
+                     );
+
+    PurposeOut = String("Списать с подотчетного лица",
+                     " бланки векселей ",
+                     EnumStr,
+                     " (в кол-ве ", Сумма, " шт.)"
+                     );
+
+    // Групперовка по счетам учета
+    if ( not VS_ForEachForm(fmo,@ГрупировкаПоСчетам,fmo) )
+      stat = 1;
+      return (stat == 0);
+    end;
+
+    if((FmordFd = VSFrmOrdFd(fmo)) == null)
+      stat = 1;
+    end;
+
+    while ((i < FromGrops.ArrGrp.size) AND (stat == 0) )
+      if(not ПолучитьСчетВекселя("Выданные под отчет ц/б", FmordFd, Дебет, MC_OPENACC_CREATE, null, null, StepDate))
+         stat = 1;
+      elif(not ПолучитьСчетВекселя("БланкиДляРаспр.,Сц/б", FromGrops.ArrGrp[i].FormFd, Кредит, MC_OPENACC_CREATE, null, null, StepDate))
+         stat = 1;
+      elif (Проводка(Дебет, Кредит, FromGrops.ArrGrp[i].Count, Purpose, 0, 0, NATCUR, 3, null, StepDate) != 0)
+          msgbox ("Ошибка при выполнении проводки",
+                  "|по передаче бланков под отчет");
+          stat = 1;
+      end;
+
+      if (ТребуетсяСписание and (stat == 0))
+        Кредит = Дебет; // Кредитом является ранее полученный счет КУ "Выданные под отчет ц/б"
+        if(not ПолучитьСчетВекселя("ВнебалСчетКорресп", FmordFd, Дебет, MC_OPENACC_CREATE, NATCUR, null, StepDate, FIROLE_CORACC_ACTIVE))
+          stat = 1;
+        elif (Проводка(Дебет, Кредит, FromGrops.ArrGrp[i].Count, PurposeOut, 0, 0, NATCUR, 3, null, StepDate) != 0)
+            msgbox ("Ошибка при выполнении проводки",
+                    "|по списанию бланков векселей");
+            stat = 1;
+        end;
+      end;
+
+      i = i + 1;
+    end;
+
+    return (stat == 0);
+END;
+```
+
+---
+
+## Пример 35: `PrintStepDocs`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsr034rp.mac`
+**Тип:** `macro`
+**Размер:** 26 строк
+
+```rsl
+MACRO PrintStepDocs (
+                ID_Operation,  /* Номер экземпляра операции */
+                ID_Step,       /* Номер шага операции */
+                Kind_Operation,/* Вид операции */
+                KindStep)      /* Вид шага операции */
+
+/* Пример использования внешнего массива с назначением платежей.
+   Смотри ф. RPS() в файле vsprint.mac
+  var PurposeExt=TArray;
+      PurposeExt[0] = PM_PURP_VEKSELDRAW;
+      PurposeExt[1] = PM_PURP_PAY_DEBT;
+      PurposeExt[2] = PM_PURP_TAXINCOME_NJ;
+*/
+    /* распоряжение на открытие счетов */
+    /* распоряжение на выполнение проводок */
+    /* МО по выдаче */
+    /* распоряжение на банковский валютный платеж */
+    /* распоряжение на клиентский валютный платеж */
+    /* распоряжение на перечисление средств */
+    //if(not Печать(false, "vsrep", ID_Operation, ID_step, isOprMultiExec, "СПОБКS"))
+    //  msgbox("Нет документов для печати");
+    //  exit(1);
+    //end;
+
+    return 1;
+END;
+```
+
+---
+
+## Пример 36: `Блок`
+
+**Источник:** `Mac/DLNG/DV/dvrepinfo_form.mac`
+**Тип:** `block`
+**Размер:** 12 строк
+
+```rsl
+  if( Cmd == DLG_INIT ) /*Установка значения в поле*/
+     if( FldRealValue == null ) /*инициализация по умолчанию*/
+        FldRealValue = ПЕРИОД;
+     end;
+     FldShowValue = DL_GetNameAlg( ALG_DV_REP_PERIOD, FldRealValue );
+  elif( Cmd == DLG_CHANGEVALUE ) /*значение поля было изменено*/
+     if( FldRealValue == ПЕРИОД )/*разрешаем редактировать только для вида периода "период"*/
+        EnableFields( pThis.Data(), PNFLD_DVREPINFO_BEG_DATE );
+        EnableFields( pThis.Data(), PNFLD_DVREPINFO_END_DATE );
+     else
+        DisableFields( pThis.Data(), PNFLD_DVREPINFO_BEG_DATE );
+        DisableFields( pThis.Data(), PNFLD_DVREPINFO_END_DATE );
+```
+
+---
+
+## Пример 37: `PanelHandler`
+
+**Источник:** `Mac/CELLS/contrstat.mac`
+**Тип:** `macro`
+**Размер:** 35 строк
+
+```rsl
+MACRO PanelHandler( dlg, cmd, id, key )
+    if( cmd == DLG_KEY )
+        if(( key == F3) and (FldName( dlg, id ) == "PeriodName") )
+            MenuChoose = Menu(Periods, NULL, NULL,NULL,NULL,0);
+            if( MenuChoose >= 0 )
+                if (MenuChoose == 0)
+                    Panel.AllYearFlag = "X";
+                else
+                    Panel.AllYearFlag = "";
+                end;
+            end;
+        elif( (key == SPACE) and (FldName( dlg, id ) == "AllYearFlag") )
+            if(Panel.AllYearFlag == "")
+                Panel.AllYearFlag = "X";
+                MenuChoose = 0;
+            else
+                Panel.AllYearFlag = "";
+                MenuChoose = 1;
+            end;
+        elif (key == ENTER)
+            RunReport();
+            return CM_CANCEL;
+        elif (key == ESC)
+            return CM_CANCEL;
+        end;
+    elif( cmd == DLG_INIT )
+        Panel.AllYearFlag = "";
+        MenuChoose = 0;
+    end;
+    
+    if( MenuChoose >= 0 )
+        Panel.PeriodName = Periods(MenuChoose);
+    end;
+    UpdateFields( dlg );
+END;
+```
+
+---
+
+## Пример 38: `PrintStepDocs`
+
+**Источник:** `Mac/DLNG/VEKSEL/vst010tb.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+MACRO PrintStepDocs (
+                ID_Operation,  /* Номер экземпляра операции */
+                ID_Step,       /* Номер шага операции */
+                Kind_Operation,/* Вид операции */
+                KindStep)      /* Вид шага операции */
+
+    if(not Печать(false, "vsrep", ID_Operation, ID_step, isOprMultiExec, "СПО")) /* Счета, Проводки, МемОрдера */
+      msgbox("Нет документов для печати");
+      exit(1);
+    end;
+
+    return 1;
+END;
+```
+
+---
+
+## Пример 39: `ProcessFile`
+
+**Источник:** `Mac/Cb/del_cntr.mac`
+**Тип:** `macro`
+**Размер:** 76 строк
+
+```rsl
+MACRO ProcessFile(filename)
+
+  var stat = 0;
+
+  if (GetEQ(filename))
+    stat = -1;
+  end;/*if*/
+
+  return stat;
+
+END;/*MACRO*/
+
+MACRO CheckCountryLinx(CountryCode)
+
+  var result = false;
+
+  FILE addrempl ("addrempl.dbt", "zp.def") KEY 6;
+  FILE bus_trip ("bus_trip.dbt", "zp.def") KEY 4;
+  FILE hs_lsht  ("hs_lsht.dbt" , "zp.def") KEY 3;
+  FILE lsheet   ("lsheet.dbt"  , "zp.def") KEY 8;
+  FILE militreg ("militreg.dbt", "zp.def") KEY 3;
+  FILE national ("national.dbt", "zp.def") KEY 4;
+  FILE patrzsal ("patrzsal.dbt", "zp.def") KEY 1;
+  FILE zsale    ("zsale.dbt"   , "zp.def") KEY 5;
+
+  addrempl.CodeCountry = CountryCode;
+  if (ProcessFile(addrempl) == -1)
+    MsgBox("Страна используется в файле адресов сотрудников.\nТабельный № сотрудника ", addrempl.Tnumb);
+    result = true;
+  end;/*if*/
+
+  bus_trip.Country = CountryCode;
+  if (ProcessFile(bus_trip) == -1)
+    MsgBox("Страна используется в файле командировок сотрудников.\nТабельный № сотрудника ", bus_trip.Tnumb);
+    result = true;
+  end;/*if*/
+
+  hs_lsht.CodeCountryBorn = CountryCode;
+  if (ProcessFile(hs_lsht) == -1)
+    MsgBox("Страна используется в файле истории личных карточек.\nТабельный № сотрудника ", hs_lsht.Tnumb);
+    result = true;
+  end;/*if*/
+
+  lsheet.CodeCountryBorn = CountryCode;
+  if (ProcessFile(lsheet) == -1)
+    MsgBox("Страна используется в файле личных карточек сотрудников.\nТабельный № сотрудника ", lsheet.Tnumb);
+    result = true;
+  end;/*if*/
+
+  militreg.CodeCountry = CountryCode;
+  if (ProcessFile(militreg) == -1)
+    MsgBox("Страна используется в файле военнокоматов.\nID записи ", militreg.IdRec);
+    result = true;
+  end;/*if*/
+
+  national.Country = CountryCode;
+  if (ProcessFile(national) == -1)
+    MsgBox("Страна используется в файле гражданства сотрудников.\nТабельный № сотрудника ", national.Tnumb);
+    result = true;
+  end;/*if*/
+
+  patrzsal.Country = CountryCode;
+  if (ProcessFile(patrzsal) == -1)
+    MsgBox("Страна используется в файле шаблонов начислений.\nВид перечисления ", patrzsal.KindMove);
+    result = true;
+  end;/*if*/
+
+  zsale.Country = CountryCode;
+  if (ProcessFile(zsale) == -1)
+    MsgBox("Страна используется в файле начислений/удержаний.\nВид перечисления ", zsale.KindMove);
+    result = true;
+  end;/*if*/
+
+  return result;
+
+END;/*MACRO*/
+```
+
+---
+
+## Пример 40: `PrintDocument`
+
+**Источник:** `Mac/DLNG/TRUST/tsappforpaym.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+MACRO PrintDocument( SpGroundID ):bool
+  var errcode, errtext;
+
+  var Doc = AppForPayment( SpGroundID );
+
+  if( FindGrTemp( Doc.GetTemplate() ) )
+    message("Печать договора ...");
+
+    PrintContr(1, Doc);
+  else
+    msgbox("шаблон не найден");
+  end;
+```
+
+---

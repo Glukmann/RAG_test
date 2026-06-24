@@ -905,3 +905,881 @@ macro GetPtsvdpList1(PartyID : integer)
 
 ---
 
+## Пример 16: `SendDPRegistry`
+
+**Источник:** `Mac/BOOK/SendPFRNotice.mac`
+**Тип:** `macro`
+**Размер:** 25 строк
+
+```rsl
+macro SendDPRegistry()
+  var countrcv = 0;
+  var rs = FindNotSyncPersn();
+  var source = RSCPFRSource;
+  var notice = RSCPFRNotice;
+  var clnts = TArray;
+  var maxpack, totalrcv;
+  var senderID;
+  var errReport = "";
+  var stat = 0;
+  var k = 0;
+  var resultlist;
+  var IDMas = TArray;
+  var CurIDMas = Tarray;
+  GetRegistryValue( "RS-CONNECT\\ПФР\\RETAIL\\MAXPACKET", V_INTEGER, maxpack );
+  GetRegistryValue( "RS-CONNECT\\SENDERID\\RETAIL", V_STRING, senderID );
+
+  while( rs.movenext() )
+    var rs_acc = FindLastAcc(rs.value("t_personid"));
+    if( rs_acc.movenext)
+      clnts[clnts.size] = clnt(rs, rs_acc);
+      IDMas[IDMas.size] = rs.value("t_personid");
+      countrcv = countrcv + 1;
+    end;
+  end;
+```
+
+---
+
+## Пример 17: `Init`
+
+**Источник:** `Mac/Cb/ObjAccount.mac`
+**Тип:** `macro`
+**Размер:** 66 строк
+
+```rsl
+macro Init(ObjectType)
+
+ var arrOpr = TArray;
+ FltrAccObj = AccountFieldUse(ObjectType);
+
+ FltrAccObj.addCondition( "Маска номера счета" , 
+                            "СчНомер",
+                            V_STRING,
+                            "*",
+                            UFF_METHOD_INPUT_EDIT,
+                            NULL,
+                            "CheckValueMask"
+ );
+
+ FltrAccObj.addCondition( "Балансовый счет" , 
+                            "СчБаланс",
+                            V_STRING,
+                            "=!*",
+                            UFF_METHOD_INPUT_EDIT,
+                            NULL,
+                            "CheckValueBal"
+ );
+
+ arrOpr = TArray;
+ arrOpr[0] = "П";
+ arrOpr[1] = "А" ;
+ arrOpr[2] = "АП";
+
+ FltrAccObj.addCondition( "Вид счета" , 
+                            "СчВид",
+                            V_STRING,
+                            "=!",
+                            UFF_METHOD_INPUT_LIST,
+                            arrOpr,
+                            NULL
+ );
+
+
+ arrOpr = GetTypeAcList( 1, 0 );
+
+
+ FltrAccObj.addCondition( "Тип счета" , 
+                            "СчТип",
+                            V_STRING,
+                            "=!",
+                            UFF_METHOD_INPUT_LIST,
+                            arrOpr,
+                            NULL
+ );
+ 
+  
+ arrOpr = GetTypeAcList( 2, 5 );
+
+
+ FltrAccObj.addCondition( "Польз. тип счета" , 
+                            "СчТипП",
+                            V_STRING,
+                            "=!",
+                            UFF_METHOD_INPUT_LIST,
+                            arrOpr,
+                            NULL
+ );
+ 
+
+ return FltrAccObj;
+end;
+```
+
+---
+
+## Пример 18: `CopyArray`
+
+**Источник:** `Mac/DLNG/SECUR/spRepFn2.mac`
+**Тип:** `macro`
+**Размер:** 11 строк
+
+```rsl
+macro CopyArray( DestArray, SourceArray )
+   var
+      counter;
+
+   DestArray.Size = 0;
+   counter = SourceArray.Size;
+   while( counter > 0 )
+      counter = counter - 1;
+      DestArray[counter] = SourceArray[counter];
+   end;
+end;
+```
+
+---
+
+## Пример 19: `find`
+
+**Источник:** `Mac/DLNG/VA/vaoverblval.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+  macro find(_Валюта)
+    var i = 0;
+
+    while(i < Param.size)
+      if(Param[i].Валюта == _Валюта)
+        return i;
+      end;
+      i = i + 1;
+    end;
+
+    return -1;
+  end;
+```
+
+---
+
+## Пример 20: `ДобавьВМассив`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsclsrpo.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+ MACRO ДобавьВМассив(векс, связь, цен_усл, флаг ) 
+   if ( флаг == null )
+     ArrBnr[ArrBnr.size] = OneBnr (векс, связь, цен_усл )
+   else
+     ArrBnr_ms[ArrBnr_ms.size] = OneBnr (векс, связь, цен_усл )
+   end;
+ END;
+```
+
+---
+
+## Пример 21: `Блок`
+
+**Источник:** `Mac/CELLS/addchg_incrept.mac`
+**Тип:** `block`
+**Размер:** 12 строк
+
+```rsl
+      cnt = cnt + 1;
+    end;
+    if(data.PayGrRecs.size > 0)
+    [ │  ######  │     #############      │          ######################            │]
+    ( data.PayGrRecs[cnt].number:c, 
+      getMYearStr(data.PayGrRecs[cnt].period):c, 
+      (data.PayGrRecs[cnt].sum + " руб."):c 
+    );
+    end;
+    [ └──────────┴────────────────────────┴────────────────────────────────────────────┘];
+    [ ];
+    [ ];
+```
+
+---
+
+## Пример 22: `PM_ShowMassChDocLog`
+
+**Источник:** `Mac/Cb/pmchdoclog.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro PM_ShowMassChDocLog( ChI1:bool, ChI2:bool, ChIWP:bool, Opers:TArray )
+
+  var NameIndex = "";
+  var i = 1;
+  
+  if( ChI1 )
+    NameIndex = "№1";
+  end;
+```
+
+---
+
+## Пример 23: `GetComiss_SWMX`
+
+**Источник:** `Mac/Mbr/swmx_GetComiss.mac`
+**Тип:** `macro`
+**Размер:** 24 строк
+
+```rsl
+macro GetComiss_SWMX
+( PaymentID : integer, // ID платежа, для которого определяются реквизиты комиссии (обязательно)
+  Group : integer, // Признак группировки (необязательно), значение по умолчанию 0
+  OrderFIID : integer, // ID валюты для пересчета (необязательно), значение по умолчанию -1
+  RateType : integer // Вид курса для пересчета (необязательно), значение по умолчанию 0
+) : TArray // array of TDataCharges7
+
+  DefaultParm(Group, 0);
+  DefaultParm(OrderFIID, ALLFININSTR);
+  DefaultParm(RateType, 0);
+
+  var ComissList : TArray = TArray();
+
+  var IsEqualPayerFIID : bool = false, IsEqualReceiverFIID : bool = false, FinishProc : bool = false;
+  var CmsnTrns : TArray = GetCmsnTrns(PaymentID, @IsEqualPayerFIID, @IsEqualReceiverFIID);
+
+  if( (Group == 0) and (CmsnTrns.size > 0) )
+    CopyTrnsToComissList(ComissList, CmsnTrns, PaymentID);
+  elif( (Group == 1) and (CmsnTrns.size > 0) )
+    CopyTrnGroupToComissList( ComissList, CmsnTrns, PaymentID, OrderFIID, RateType,
+      IsEqualPayerFIID, IsEqualReceiverFIID );
+  else
+    AddCmsnFromDtval(ComissList, PaymentID, Group, OrderFIID, @FinishProc);
+  end;
+```
+
+---
+
+## Пример 24: `TxGetReplPartykindList`
+
+**Источник:** `Mac/DLNG/SECUR/Replication/ws_txreplpartykind.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+macro TxGetReplPartykindList(
+  PageSize:Integer                             // Размер страницы
+ ,PageNum:Integer                              // Номер страницы
+ ,FilterItems//: TArray of FilterConditionItem // Значения фильтрации
+ ,OrderItems//: TArray of OrderItem            // Параметры сортировки
+):TArray
+  var Query = "", AddWhere = "", OrderBy = "", Cmd = null, Set = null;
+  var ReplPartykind = null;
+  var ReplPartykindList = TArray();
+
+  if(PageNum == null)
+    RunError("Не задан обязательный параметр функции: номер страницы");
+  end;
+```
+
+---
+
+## Пример 25: `group`
+
+**Источник:** `Mac/DLNG/VA/vae040.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+  MACRO group(Fiid, acc, amount)
+   var i = find(Fiid, acc);
+     if(i == -1)
+        newGrp(fiid, acc, amount);
+     else
+        add (i, amount);
+     end;
+  END;
+```
+
+---
+
+## Пример 26: `cmpStruct`
+
+**Источник:** `Mac/LC/lcedit.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+  macro cmpStruct( newStruct, oldStruct )
+    if( newStruct and oldStruct )
+      NotChangeArray[NotChangeArray.size] = CmpPrm(TypeAction_Struct, newStruct, oldStruct);
+    end;
+  end;
+```
+
+---
+
+## Пример 27: `AddRecord`
+
+**Источник:** `Mac/DLNG/DV/dvfxreprdl.mac`
+**Тип:** `macro`
+**Размер:** 17 строк
+
+```rsl
+  macro AddRecord( _FICode, _Request, _Liab )
+     var i;
+
+     if( DataArr.size == 0 )
+        DataArr[DataArr.size] = TItogRecord(_FICode, _Request, _Liab);
+        return 0;
+     end;
+
+     i = FICodeSearch(_FICode);
+
+     if( i == -1 )
+        DataArr[DataArr.size] = TItogRecord(_FICode, _Request, _Liab);
+     else
+        DataArr[i].Request = DataArr[i].Request + _Request;
+        DataArr[i].Liab = DataArr[i].Liab + _Liab;
+     end;
+  end;
+```
+
+---
+
+## Пример 28: `CU_YesNoWin`
+
+**Источник:** `Mac/Cb/commonutil.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+macro CU_YesNoWin(msg : string)
+  Array Text;
+  Array Button;
+  Button(0) = "  Да   ";
+  Button(1) = "  Нет  ";
+  var but, ind = 0;
+
+  Text(ind) = msg;
+  but = ConfWin(Text, Button);
+  
+  return (but == 0);
+end;
+```
+
+---
+
+## Пример 29: `PrintVekInfo`
+
+**Источник:** `Mac/DLNG/VA/vaprinfo.mac`
+**Тип:** `macro`
+**Размер:** 111 строк
+
+```rsl
+MACRO PrintVekInfo(dateB, dateE, ap, mode, mode_kind, UserLot)
+VAR N, cmd, ok,
+    status,
+    PrevDate, PrevBuy, BuySum = $0, BuyFI,
+    FirstTime, PrMes = TRUE,
+    sqlSource, sqlSelect,
+    v_count,
+    start_date = dateB,
+    progr = 0,
+    F15_1, F16_1, F17_1, PFI_ISO_Code,print_count = 0;
+
+    Dl_CallInsertStat( IIF( mode == 2, DL_OUTREPORT_EXCEL, DL_OUTREPORT_STD ) );
+    sqlSource = " FROM dvsbanner_dbt vb, dfininstr_dbt fin WHERE ";
+
+    if(mode_kind == VARM_VS) sqlSource = sqlSource + " vb.t_bcformkind = " + VSBANNER_FORMKIND_SIMPLE;
+     elif (mode_kind == VARM_DS) sqlSource = sqlSource + " vb.t_bcformkind = " + VSBANNER_FORMKIND_CERT;
+     elif (mode_kind == VARM_VS_DS) sqlSource = sqlSource + " ( vb.t_bcformkind = " + VSBANNER_FORMKIND_SIMPLE + " OR vb.t_bcformkind = " + VSBANNER_FORMKIND_CERT + " ) " ;
+    end;
+
+    sqlSource = sqlSource + " AND vb.t_Issuer not in (select t_PartyID from ddp_dep_dbt) "
+                          + " AND fin.t_FIID = vb.t_FIID ";
+
+    if (mode_kind == VARM_VS) sqlSource = sqlSource + " AND fin.t_avoirkind = " + AVOIRISSKIND_BILL;
+    elif (mode_kind == VARM_DS) sqlSource = sqlSource + " AND fin.t_avoirkind = " + AVOIRISSKIND_DEPOSIT_CERTIFICATE;
+    elif (mode_kind == VARM_VS_DS) sqlSource = sqlSource + " AND ( fin.t_avoirkind = " + AVOIRISSKIND_BILL + " OR fin.t_avoirkind = " + AVOIRISSKIND_DEPOSIT_CERTIFICATE + " ) " ;
+    end;
+
+    if(UserLot != "")
+      sqlSource = sqlSource + " and vb.t_UserLot = '"+UserLot+"'";
+    end;
+
+    sqlSelect = "SELECT count(*) cnt " + sqlSource;
+    cmd = TRsbDataSet(sqlSelect);
+    cmd.MoveNext();
+
+    v_count = int(cmd.cnt);
+    v_count = v_count * (dateE - dateB + 1);
+
+    cmd = TRsbDataSet("select vb.t_IssuerName, vb.t_BCID BCID, vb.t_BCTermFormula BCTermFormula, " +
+                  "vb.t_BCPresentationDate BCPresentationDate, vb.t_IssuePlace IssuePlace, " +
+                  "vb.t_BCNumber BCNumber, vb.t_BCSeries BCSeries, vb.t_BCFormKind BCFormKind" +
+                  sqlSource +
+                  "order by vb.t_IssuerName, vb.t_BCSeries, vb.t_BCNumber ", RSDVAL_CLIENT, RSDVAL_STATIC);
+
+    cmd.NullConversion = true;
+
+    VA_Rep_InitProgress(v_count);
+
+    while(dateB <= dateE)
+      if (IsWorkDay(dateB))
+
+        N = 0;
+        FirstTime = TRUE;
+        TFaceValue.size = 0;
+        TSum.size       = 0;
+        TAcc_Bonus.size = 0;
+        TAcc_Disk.size  = 0;
+        TAcc_Proc.size  = 0;
+        TBalans.size    = 0;
+        TCurrCost.size  = 0;
+        TFairValue.size = 0;
+
+        TRes_Sum = $0;
+
+        ok = cmd.MoveFirst();
+
+        while(ok)
+           if((ПодсистемаВекселяНаДату(cmd.BCID, dateB) == "N")
+          and VA_GetABCStatusOnDate(cmd.BCID, dateB, status) and (status == VABANNER_STATUS_ACCOUNT))
+              if(VA_GetBalanceDate(cmd.BCID, dateB, @PrevDate, @PrevBuy, @BuySum, @BuyFI)) // получаем информацию по сделке зачисления
+                 if(not СделкаСКлиентом(PrevBuy))
+                    N = N + 1;
+
+                    if(FirstTime)
+                       PrintHeader(dateB, not PrMes, UserLot);
+                       FirstTime = FALSE;
+                       PrMes = FALSE;
+                    end;
+
+                    PrintVeksel(N, cmd.IssuerName, cmd.BCID, cmd.BCTermFormula, cmd.BCPresentationDate,
+                                   cmd.IssuePlace, cmd.BCNumber, cmd.BCSeries, cmd.BCFormKind,
+                                   PrevDate, PrevBuy, BuySum, BuyFI, dateB, ap);
+                 end;
+              else
+                 // не найдена сделка покупки, вероятно - разъезд в базе
+                 ErrorStr[ErrorStr.Size] = "Не найдена сделка, которой был зачислен вексель " + trim(cmd.BCSeries) + " N " + trim(cmd.BCNumber);
+              end;
+           end;
+
+           ok = cmd.MoveNext();
+           UseProgress(progr = progr + 1);
+        end;
+
+        if(NOT FirstTime)
+           PrintFooter(N, ap);
+        end;
+
+      end; //if (IsWorkDay(dateB))
+
+      dateB = dateB + 1;//увеличиваем дату на один день
+    end;
+
+    RemProgress();
+
+    rep.Print(mode, not PrMes, date_as_str(start_date),
+        "Нет ни одной записи за указанный период для формирования отчета!");
+
+    VA_PrintProtokol(ErrorStr);
+
+    return 0;
+END;
+```
+
+---
+
+## Пример 30: `PrintData`
+
+**Источник:** `Mac/Mbr/gginfpmsendrep.mac`
+**Тип:** `macro`
+**Размер:** 30 строк
+
+```rsl
+  macro PrintData( rs:RsdRecordSet )
+    if( RepType == GGPIPmSendReqsGeneratingReportType_Generating )
+      [│#####│##########│###############│###########│#########################│#########│#########################│###############│##################################################│###########│##################################################│
+      ]( rs.Value("t_Number"), 
+         date(rs.Value("t_Date")), 
+         rs.Value("t_Kind"), 
+         rs.Value("t_PayID"), 
+         rs.Value("t_PayerAcc"), 
+         rs.Value("t_RecBIC"), 
+         rs.Value("t_ReceiverAcc"), 
+         rs.Value("t_Amount"),
+         rs.Value("t_Ground"):w, 
+         rs.Value("t_ReqID"), 
+         rs.Value("t_Result"):w );
+    else
+      [│#####│##########│###############│###########│#########################│#########│#########################│###############│##################################################│###########│######################################│##################################################│
+      ]( rs.Value("t_Number"), 
+         date(rs.Value("t_Date")), 
+         rs.Value("t_Kind"), 
+         rs.Value("t_PayID"), 
+         rs.Value("t_PayerAcc"), 
+         rs.Value("t_RecBIC"), 
+         rs.Value("t_ReceiverAcc"), 
+         rs.Value("t_Amount"),
+         rs.Value("t_Ground"):w, 
+         rs.Value("t_ReqID"),
+         rs.Value("t_MessID"), 
+         rs.Value("t_Result"):w );
+    end;
+  end;
+```
+
+---
+
+## Пример 31: `del`
+
+**Источник:** `Mac/DEPOSITR/atexit.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+  macro del( fn )
+    var objFn = getFnObj(fn);
+    var i = m_funcs.lsearch(Functor(objFn,null), @CompByFuncName);
+    if( i < 0 )
+      RunError("Функция не найдена");
+    end;
+    m_funcs.remove(i);
+  end;
+```
+
+---
+
+## Пример 32: `CreateString`
+
+**Источник:** `Mac/CELLS/classes.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+macro CreateString( str )
+var retString = "Условие:\n",i = 0;
+array mass;
+
+  StrSplit(str,mass,50);
+  while( i < asize(mass) )
+    retString = retString + mass(i) + "\n";
+    i = i + 1;
+  end;
+```
+
+---
+
+## Пример 33: `InitDefValue`
+
+**Источник:** `Mac/DLNG/UniLoader/ul_dataKind_i.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+  MACRO InitDefValue()
+      if  (ValType(rs) != V_UNDEF)
+          fld_idField.Value       = rs.Value("t_id");
+          fld_nameField.Value     = rs.Value("t_name");
+          fld_macroField.Value    = rs.Value("t_macro");
+          fld_objClassField.Value = rs.Value("t_objClass");
+      else
+          fld_idField.Value       = 0;
+          fld_nameField.Value     = "";
+          fld_macroField.Value    = "";
+          fld_objClassField.Value = "";
+      end;
+
+      this.Redraw();
+  END;
+```
+
+---
+
+## Пример 34: `FSSP_CalcPayAccReserve`
+
+**Источник:** `Mac/Cb/fsspreserve.mac`
+**Тип:** `macro`
+**Размер:** 87 строк
+
+```rsl
+macro FSSP_CalcPayAccReserve
+(
+  SummRub : money, // Сумма к оплате
+  AccountList : TArray, // TArray<TAccRestPrmElement> - Список счетов оплаты
+  FssRequireObj : RsbFssRequire
+)
+// begin
+  var stat = 0;
+  var msg;
+  var SummAmount = ZeroValue(V_MONEY);
+  var AccEquire = FssRequireObj.AccEquire;
+
+  // счета списка, по которым создана претензия резервирования
+  var ReservAccountList = TArray(true, AccountList.size, AccountList.size);
+
+  var Tmp;
+  var RateType = 7; // ЦБ РФ
+  GetRegistryValue("COMMON\\ПАРАМЕТРЫ ПРОЦЕДУР\\ГРУППОВАЯ ОПЛАТА\\ВИД_КУРСА", V_INTEGER, RateType);
+  AccountList.sort(@AccountSortCallback);
+
+  var i = 0;
+  var RestElem;
+  var oldRoundingUp;
+
+  while (i < AccountList.size)
+    var elem : TAccRestPrmElement = AccountList[i];
+    if (elem.Origin == FSSPORIGIN_CORE)
+      var Sum : Money = 0.0;
+      var Amount : Money = SummRub;
+
+      if (elem.CodeCurrency != 0)
+        oldRoundingUp = FISetRoundingUp(4);
+        ConvSum (Amount, SummRub, {curdate}, 0, elem.CodeCurrency, RateType);
+        FISetRoundingUp(oldRoundingUp);
+      end;
+
+      var IsI2 = "";
+      var IsWP = "";
+      stat = FSSP_GetFreeAmount(elem.Account, elem.CodeCurrency, {curdate}, 
+        FssRequireObj.Priority, @Sum, @IsI2, @IsWP, Round(Amount, 2));
+      
+      if ((Sum > ZeroValue(V_MONEY)) and (AccEquire.Find(elem.Account)))
+        if (elem.CodeCurrency != 0)
+          oldRoundingUp = FISetRoundingUp(4);
+          ConvSum (Tmp, Sum, {curdate}, elem.CodeCurrency, 0, RateType);
+          FISetRoundingUp(oldRoundingUp);
+
+          RestElem = TAccRes(elem, Round(Tmp, 2));
+          SummAmount = SummAmount + Round(Tmp, 2);
+        else
+          RestElem = TAccRes(elem, Sum);
+          SummAmount = SummAmount + Sum;
+        end;
+
+        ReservAccountList[ReservAccountList.size] = RestElem;
+        // Если на счете ХП признак наличия картотеки №2 или картотеки ОР
+        if ((IsI2 == "X") or (IsWP == "X"))
+          AccEquire.K2 = true;
+          AccEquire.Update();
+        end;
+      end;
+    else
+      var result : TAccRestResultOther = FSSP_GetAccountRestOther(elem, FssRequireObj, SummRub, true);
+      FSSP_CheckAccRestResultOther(result);
+
+      if ((result.SummRub > ZeroValue(V_MONEY)) and (AccEquire.Find(elem.Account)))
+        if (elem.CodeCurrency != 0)
+          oldRoundingUp = FISetRoundingUp(4);
+          ConvSum (Tmp, result.SummRub, {curdate}, elem.CodeCurrency, 0, RateType);
+          FISetRoundingUp(oldRoundingUp);
+
+          RestElem = TAccRes(elem, Tmp);
+          SummAmount = SummAmount + Tmp;
+        else
+          RestElem = TAccRes(elem, result.SummRub);
+          SummAmount = SummAmount + result.SummRub;
+        end;
+
+        ReservAccountList[ReservAccountList.size] = RestElem;
+        if (result.IsK2)
+          AccEquire.K2 = true;
+          AccEquire.Update();
+        end;
+      end;
+    end;
+    i = i + 1;
+  end;
+```
+
+---
+
+## Пример 35: `СоздатьУзелName`
+
+**Источник:** `Mac/DLNG/dl_elank.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+  MACRO СоздатьУзелName(Name,vObj)
+    var УзелName =  CreateNode(Name, "xserializer:id",getXid());
+
+    УзелName.appendChild(CreateElementValue("av:Код",vObj.cod));
+    УзелName.appendChild(CreateElementValue("av:Описание",vObj.value));
+    УзелName.appendChild(CreateElementValue("av:Активно",vObj.act));
+
+    return (УзелName);
+  End;
+```
+
+---
+
+## Пример 36: `FillActiveList`
+
+**Источник:** `Mac/DLNG/DEPO/dpposord.mac`
+**Тип:** `macro`
+**Размер:** 24 строк
+
+```rsl
+macro FillActiveList( condition_date, depoacc_id )
+  var i = 0,
+      stat,
+      sub_stat,
+      rest = $0;
+  var query;
+
+  KeyNum( accvanl, 1 );
+  ClearRecord( accvanl );
+
+  KeyNum( accsub, 0 );
+  ClearRecord( accsub );
+
+  //если мы сюда зашли, то значит хоть один счет уже найден, тогда
+  stat = account.MoveFirst();
+
+  if ( stat )
+    DepoRootList.Size  = 0;
+    DepoAccList.Size   = 0;
+    IssuerList.Size    = 0;
+    DepoAvoir.Size     = 0;
+    DepoRestAvoir.Size = 0;
+    XidIKList.Size     = 0;
+  end;
+```
+
+---
+
+## Пример 37: `IsMetalNameString`
+
+**Источник:** `Mac/DEPOSITR/ingpimp.mac`
+**Тип:** `macro`
+**Размер:** 36 строк
+
+```rsl
+MACRO IsMetalNameString( str   : string, 
+                         metal : integer,
+                         boxed : bool ) : integer
+    var subs = TArray,
+        ret;        
+        
+    str = Trim( str );
+    str = StrLwr ( str );
+               
+    subs = SubStrings( str, " " );    
+    SetParm( 2, false );
+        
+    var i = 0;
+    ret = PRS_ERR;
+    while ( i < METALS.Size )
+        if ( subs(0) == StrLwr( METALS(i) ) )
+            SetParm( 1, i );            
+            i = METALS.Size;
+            ret = PRS_OK; 
+        end;
+        i = i + 1;
+    end;
+
+    if ( (ret == PRS_OK) and (subs.Size > 1) )
+        
+        if ( (subs.Size == 3) and (subs(1) == "в") and (subs(2) == "футляре") )
+            SetParm( 2, true );      
+        else
+            ret = PRS_ERR;
+        end;
+        
+    end;
+            
+    return ret;
+ 
+END;
+```
+
+---
+
+## Пример 38: `InsertFilialPayment`
+
+**Источник:** `Mac/BOOK/PFRCommon.mac`
+**Тип:** `macro`
+**Размер:** 17 строк
+
+```rsl
+macro InsertFilialPayment( FNCash, realFNCash )
+  file trnpayf("trn_payf.dbt") key 0 write;
+  trnpayf.NumberContract = trnpaym.value("t_NumberContract");
+  trnpayf.Num_PayMessage = trnpaym.value("t_Num_PayMessage");
+  trnpayf.DateDocumentFilial = trnpaym.value("t_DateDocumentGlobal");
+  trnpayf.PaymAppKind = trnpaym.value("t_iApplicationKind");
+  trnpayf.PaymAppKey = trnpaym.value("t_ApplicationKey");
+  trnpayf.FlagCur = trnpaym.value("t_FlagCur");
+  trnpayf.Code_Currency = trnpaym.value("t_GlobalCurrency");
+  trnpayf.TypeOper = trnpaym.value("t_TypeOper");
+  trnpayf.ApplType = trnpaym.value("t_ApplType");
+  trnpayf.Ground = trnpaym.value("t_Ground");
+  if ( ValType( realFNCash ) != V_UNDEF )
+    trnpayf.RealFNCash = Int( realFNCash );
+  else
+    trnpayf.RealFNCash = trnpaym.value("t_Department");
+  end;
+```
+
+---
+
+## Пример 39: `VS_MakeFRMOrder`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsfmotls.mac`
+**Тип:** `macro`
+**Размер:** 31 строк
+
+```rsl
+MACRO VS_MakeFRMOrder( Order, StepDate )
+var
+    frmorder  = TBFile("vsfrmord"), /* договор распоряжения по залогу */
+    LnkArray = TArray,
+    stat = 0;
+
+    frmorder.rec.Signed = Order.Signed;
+    frmorder.rec.OperType = VS_BLANKOPER_INCASH;
+    frmorder.rec.ResponsPerson = Order.ResponsPerson;
+    frmorder.rec.Status = VSFRMORD_STATUS_PREP;
+    frmorder.rec.Kind_Operation =  CB_GetFirstValidOpenOpKind(DL_VSFRMORD, OPPF_FITALL, "К");
+    frmorder.rec.Oper = 0;
+    frmorder.rec.Department = Order.SendToDepartment;
+    frmorder.rec.SendToDepartment = Order.SendToDepartment;
+    frmorder.rec.Branch = Order.SendToDepartment;
+
+    /* заполним буфер связок договор-вексель */
+
+    if ( not VS_ForEachForm(Order,@ЗаполнениеLnk,LnkArray) )
+      stat = 1;
+    elif( LnkArray.Size == 0 )
+        stat = 1;
+    elif(VS_GetFmoNumber(frmorder) != 0)
+        msgbox("Ошибка при генерации номера |распоряжения на прием бланков в кассу");
+        stat = 1;
+    else
+        VS_InsertVSFRMORD(frmorder, LnkArray);
+    end;
+
+    return (stat == 0);
+END;
+```
+
+---
+
+## Пример 40: `CreateColList_Lmts`
+
+**Источник:** `Mac/Mbr/nbrk_FillColLists.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro CreateColList_Lmts(ColList : TArray)
+  AddColListElem( ColList, "Тип лимита", "Tp", 35, 4 );
+  AddColListElem( ColList, "Счет", "IBAN", 34, 20 );
+  AddColListElem( ColList, "Дата начала", "Dt", 10, 10 );
+  AddColListElem( ColList, "Сумма", "Amt", 19, 19 );
+  AddColListElem( ColList, "Д/К", "CdtDbtInd", 4, 4 );
+end;
+```
+
+---

@@ -792,3 +792,851 @@ macro ExecuteStep( outBuff, primDoc )
 
 ---
 
+## Пример 16: `Блок`
+
+**Источник:** `Mac/DLNG/SECUR/Convert/2728_AccRevision.mac`
+**Тип:** `block`
+**Размер:** 11 строк
+
+```rsl
+  PRIVATE MACRO OpenAccount( FD, CatCode:STRING, FIRole:INTEGER, OpenDate:DATE, AccBuf:TRecHandler ):BOOL
+     if( FD.IsExistAccount( CatCode, NULL, true, FIRole, AccBuf, NULL, OpenDate ) == false )
+        if( not FD.OpenAccount( CatCode, null, true, FIRole, AccBuf, OpenDate) )
+           Message( "!!! Ошибка при открытии счета по КУ \""+CatCode+"\"\n" + GetErrMsg() );
+           return false;
+        else
+           Message( "Открыт счет по КУ \""+CatCode+"\" - " + AccBuf.rec.Account );
+        end;
+     end;
+     return true;
+  END;
+```
+
+---
+
+## Пример 17: `printAccount`
+
+**Источник:** `Mac/DEPOSITR/IFRSReport.mac`
+**Тип:** `macro`
+**Размер:** 27 строк
+
+```rsl
+macro printAccount(ref: integer, operType: integer, depDate: date, msg: string)
+  SetOutput(getFullRepName(), true);
+
+  count = count + 1;
+
+  if (msg != "")
+
+    if (not isPrintTableHeader)
+      PrintTableHeader;
+    end;
+
+    errCount = errCount + 1;
+
+    var account = "";
+    var opName = "";
+
+    var accRs = getAccount(ref);
+    if (accRs.moveNext())
+      account = accRs.value("t_Account");
+    end;
+
+    opName = getOpName(operType);
+
+    [| ###################### | ########## | ############# | #################################################################### |]
+        (account, depDate, opName : w, msg : w);
+    [+------------------------+------------+---------------+----------------------------------------------------------------------+];
+  end;
+```
+
+---
+
+## Пример 18: `ImportED514`
+
+**Источник:** `Mac/Mbr/uf514.mac`
+**Тип:** `macro`
+**Размер:** 16 строк
+
+```rsl
+macro ImportED514(ImportFileName : string, node:object)
+   var directory = Bnk_GetRegistryValue("МЕЖБАНКОВСКИЕ РАСЧЕТЫ\\УФЭБС\\ED514\\ED514_Directory", V_STRING, "..\\import\\spfs\\ED514");
+   var name, ext;
+   SplitFile(ImportFileName, name, ext);
+   var fn = directory + "\\" + name + ext;
+   MakeDir(directory);
+
+   if (open(txt_file, fn ))
+      insert(txt_file,  node.xml);
+      close(txt_file);
+   else
+      std.msg("Ошибка записи файла " + fn);
+   end;  
+
+   std.msg("Предупреждение: Сообщение ED514 должно быть загружено по транспорту SWIFT. Файл " + name + ext + " перенесен в " + fn);
+end;
+```
+
+---
+
+## Пример 19: `GenMes`
+
+**Источник:** `Mac/Mbr/ufgm813.mac`
+**Тип:** `macro`
+**Размер:** 47 строк
+
+```rsl
+macro GenMes( addrMes, addrReq )
+
+  record wlmes(wlmes);
+  record wlReq(wlreq);
+  
+  SetBuff( wlReq, addrReq );
+  SetBuff( wlmes, addrMes );
+
+  var ed_nda = NULL;
+  ed_nda = EDNoDateAuthor();
+  ed_nda.ConstructByTrn(wlmes.TRN);
+  
+  ЗаписатьПолеЛог( "EDNo",     ed_nda.EDNo, TRUE );
+  ЗаписатьПолеЛог( "EDDate",   YYYYMMDD(ed_nda.EDDate), TRUE );
+  ЗаписатьПолеЛог( "EDAuthor", ed_nda.EDAuthor, TRUE );
+
+  UFEBS_InsertMesIdentificator(wlmes.MesID, ed_nda.EDNo, YYYYMMDD(ed_nda.EDDate), ed_nda.EDAuthor);
+
+  var WlAddFldValue : string = "";
+
+  /*Блок EDRefID*/
+  WlAddFldValue = GetWlAddFldValue( wlReq.ReqID, "#EDRefID" );
+  УстановитьКонтекстБлокаЛог( "EDRefID" );
+    ЗаписатьПолеЛог( beginField, "EDRefID" );
+    ed_nda = NULL;
+    ed_nda = EDNoDateAuthor();
+    ed_nda.ConstructByTrn( WlAddFldValue );
+    ЗаписатьПолеЛог( "EDNo",     ed_nda.EDNo, TRUE );
+    ЗаписатьПолеЛог( "EDDate",   YYYYMMDD(ed_nda.EDDate), TRUE );
+    ЗаписатьПолеЛог( "EDAuthor", ed_nda.EDAuthor, TRUE );
+    ЗаписатьПолеЛог( endField, "EDRefID" );
+  УстановитьКонтекстБлокаЛог( ".." );
+
+  /*Блок BeforeAnother*/
+  WlAddFldValue = GetWlAddFldValue( wlReq.ReqID, "#BeforeAnother" );
+  if( WlAddFldValue != "" )
+    УстановитьКонтекстБлокаЛог( "BeforeAnother" );
+      ЗаписатьПолеЛог( beginField, "BeforeAnother" );
+      ed_nda = NULL;
+      ed_nda = EDNoDateAuthor();
+      ed_nda.ConstructByTrn( WlAddFldValue );
+      ЗаписатьПолеЛог( "EDNo",     ed_nda.EDNo, TRUE );
+      ЗаписатьПолеЛог( "EDDate",   YYYYMMDD(ed_nda.EDDate), TRUE );
+      ЗаписатьПолеЛог( "EDAuthor", ed_nda.EDAuthor, TRUE );
+      ЗаписатьПолеЛог( endField, "BeforeAnother" );
+    УстановитьКонтекстБлокаЛог( ".." );
+  end;
+```
+
+---
+
+## Пример 20: `Execute`
+
+**Источник:** `Mac/DLNG/SECUR/oprmassexec.mac`
+**Тип:** `macro`
+**Размер:** 11 строк
+
+```rsl
+  MACRO Execute( Msg:STRING ):INTEGER
+     if( m_init )
+        m_init = false;
+
+        SQL_Execute( "BEGIN RSI_RsbOperation.procSetOprStatusValue(); END;", Msg, true );
+     end;
+
+     return 0;
+  ONERROR
+     return 1;
+  END;
+```
+
+---
+
+## Пример 21: `WriteDocumentAttrs`
+
+**Источник:** `Mac/Mbr/fnsaccmsg_lib.mac`
+**Тип:** `macro`
+**Размер:** 22 строк
+
+```rsl
+macro WriteDocumentAttrs
+( CommonAccMsg : TCommonDataAccMsg,
+  Счет : string,
+  НовыйСчет : string,
+  Валюта : integer,
+  ClientID : integer,
+  OldMesID : integer,
+  IsIndivid : bool, // сообщение генерится по счету физ.лица, не являющегося ИП
+  ClientType : string // тип клиента по 311-П
+)
+  ЗаписатьПолеЛог("ИдДок", CommonAccMsg.ИдДок);
+  ЗаписатьПолеЛог("КНД", CommonAccMsg.КНД);
+
+  ЗаписатьПолеЛог("КодНОБ", CommonAccMsg.КодНОБ);
+
+  ЗаписатьНомСообИТипСооб( CommonAccMsg.MesSender, Счет, НовыйСчет, Валюта, ClientID,
+                           OldMesID, false, IsIndivid, ClientType );
+  ЗаписатьПолеЛог("ДолжнПрБ", CommonAccMsg.ДолжнПрБ);
+  ЗаписатьФамПрБ(CommonAccMsg.AccDprt, IsIndivid);
+  ЗаписатьПолеЛог("ТелБанка", CommonAccMsg.ТелБанка);
+  ЗаписатьПолеЛог("ДатаСооб", CommonAccMsg.ДатаСооб);
+end;
+```
+
+---
+
+## Пример 22: `ConstructMT103`
+
+**Источник:** `Mac/Mbr/swsgd103.mac`
+**Тип:** `macro`
+**Размер:** 41 строк
+
+```rsl
+macro ConstructMT103( RespID )
+  var field_name, field_value, loop = 1, count = 0, wasRead = 1,
+      result = TRUE, error, fld, BankCode;
+
+  /* Последовательно считываем поля и заполняем лексемы */
+  while( loop )
+    fld = ПоляФормы.Value(count);
+    if( wasRead AND (not СчитатьПоле( field_name, field_value )) )
+      loop = 0;
+    else
+      if( (field_name != fld.Name) )
+        if( fld.ПолеОбязательно )
+          std.msg( "Не указано обязательное поле " + fld.Name );
+          result = FALSE;
+          loop = 0;
+        else
+          /* Пропускаем необязательные поля */
+          wasRead = 0;
+        end;
+      else
+        if( fld.ОбработатьПолеФормы( field_value ) )
+          if( fld.ВыполнитьФункцияБлока  )
+            if( (fld.Name == InstructionCodeField) OR (fld.Name == TimeIndicationField) OR
+                (fld.Name == SendersChargesField) )
+              count = count - 1;
+            end;
+            wasRead = 1;
+          else
+            std.msg("Ошибка при выполнении функции блока " + fld.Name);
+            result = FALSE;
+            loop = 0;
+          end;
+        else
+          std.msg("Ошибка при обработке поля формы " + fld.Name);
+          result = FALSE;
+          loop = 0;
+        end;
+      end;
+      count = count + 1;
+    end;
+  end;
+```
+
+---
+
+## Пример 23: `ExecuteStep`
+
+**Источник:** `Mac/Cb/op310_40.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+macro ExecuteStep( doc, primdoc )
+  var stat = 0;
+  var ПроводкаИсправительная = PaymentObj.MakeTransaction();
+  var ПроводкаКурсовойРазницы : RsbAccTransaction; /*Создаем только для сторно*/
+  var Multy : RsbMultyDoc;
+  var Memorial : RsbMemorialOrder;
+  var BankOrder : RsbBankOrder;
+  var Chapter = 1;
+  var PayerFIID  = NATCUR;   
+  var ReceiverFIID = NATCUR;
+  var ExistsExRateAccTrn = false;
+
+  if(GetAccIspr(accispr, primdoc, PaymentObj.DocKind))
+    Date_Rate = accispr.RateDate;
+  end;
+```
+
+---
+
+## Пример 24: `ЗаписатьИдентификатораСтороны`
+
+**Источник:** `Mac/Mbr/swdpgmes.mac`
+**Тип:** `macro`
+**Размер:** 99 строк
+
+```rsl
+macro ЗаписатьИдентификатораСтороны(msginf,kind,msgParty,isNDC)
+   var IsSave=true, PartyCode, error, prefix, fldValue, type;
+   DebugBreak;
+   if((valtype(isNDC)==V_UNDEF) or (isNDC==ST_UNDEF))
+      isNDC = false;
+   end;
+
+   prefix = GetllValueElement(OBJTYPE_MSGPARTYTP, kind, error);
+   if ( error )
+      RunError("|Неизвестный идентификатор стороны");
+   end;
+   prefix = ":"+prefix+"/";
+   if ( (kind==OBJTYPE_MSGPATYTP_EXCH) OR
+        (kind==OBJTYPE_MSGPATYTP_MEOR) OR
+        (kind==OBJTYPE_MSGPATYTP_MERE) OR
+        (kind==OBJTYPE_MSGPATYTP_TRRE) OR
+        (kind==OBJTYPE_MSGPATYTP_INVE) )
+      type = DPMSGPAT_OTHER;
+   elif( (kind==OBJTYPE_MSGPATYTP_ACCW) OR
+         (kind==OBJTYPE_MSGPATYTP_BENM) OR
+         (kind==OBJTYPE_MSGPATYTP_PAYE)
+       )
+      type = DPMSGPAT_CURRENCIES;
+   else
+      type = DPMSGPAT_SECURITIES;
+   end;   
+
+   if( not УстановитьКонтекстБлока( "95a" ) )
+     RunError("|Ошибка при установке контекста блока 95a");
+   end;
+
+   if ( (valtype(msgParty)==V_UNDEF) OR (msgParty.PartyType!=kind) )
+      msgParty = GetMessageParty(msginf, type, kind);
+   end;
+   if ( valtype(msgParty)!=V_UNDEF )
+      if (( msgParty.PartyCodeKind==PTCK_SWIFT ) and (msgParty.PartyCode != ""))
+         ЗаписатьПолеЛог( PartyPField, prefix+"/"+msgParty.PartyCode ) ;
+      else
+         PartyCode = ПолучитьКодСубъекта( msgParty.PartyID, PTCK_SWIFT, error );
+         if ( not error )
+             ЗаписатьПолеЛог( PartyPField, prefix+"/"+PartyCode );
+         else
+             if(isNDC == true)
+               if( type == DPMSGPAT_CURRENCIES)
+                 PartyCode = ПолучитьКодСубъекта( msgParty.PartyID, PTCK_BIC, error );
+                 if ( not error )
+                   ЗаписатьПолеЛог( PartyQField, prefix+"/"+PartyCode );
+                 else
+                   if ( msgParty.PartyName!="" )
+                      StrChangeRusXSet( msgParty.PartyName, fldValue, ST_RUR5, true );
+                      StrMultyToFormat( fldValue, fldValue, 35, 4 );
+                      ЗаписатьПолеЛог( PartyQField, prefix+"/"+fldValue );
+                   else
+                      IsSave = false;
+                   end;
+                 end;               
+               else
+                 PartyCode = ПолучитьКодСубъекта( msgParty.PartyID, PTCK_NDC, error );
+                 if ( not error )
+                   ЗаписатьПолеЛог( PartyQField, prefix+"/"+"XX/CORP/NADC/"+PartyCode );
+                 else
+                   if ( msgParty.PartyName!="" )
+                      StrChangeRusXSet( msgParty.PartyName, fldValue, ST_RUR5, true );
+                      StrMultyToFormat( fldValue, fldValue, 35, 4 );
+                      ЗаписатьПолеЛог( PartyQField, prefix+"/"+fldValue );
+                   else
+                      IsSave = false;
+                   end;
+                 end;
+               end;
+             else
+             if ( msgParty.DepoPartyCode!="" )                  
+                ЗаписатьПолеЛог( PartyQField, prefix+"/"+"XX/CORP/"+
+                                 ПолучитьВнутреннийКод(OBJTYPE_PARTY,msginf.ReceiverID,msgParty.DepoPartyCodeKind)+
+                                 "/"+msgParty.DepoPartyCode );
+             else
+                if ( msgParty.PartyName!="" )
+                   StrChangeRusXSet( msgParty.PartyName, fldValue );
+                   StrMultyToFormat( fldValue, fldValue, 35, 4 );
+                   ЗаписатьПолеЛог( PartyQField, prefix+"/"+fldValue );
+                else
+                   IsSave = false;
+                end;
+             end;
+         end;
+      end;
+      end;
+   else
+      IsSave = false;
+   end;
+
+   if( not УстановитьКонтекстБлока( ".." ) )
+      RunError("|Ошибка при установке контекста блока ..");
+   end;
+
+   setparm(2,msgParty);
+
+   return IsSave;
+end;
+```
+
+---
+
+## Пример 25: `Egr_Go`
+
+**Источник:** `Mac/Cb/egr_go.mac`
+**Тип:** `macro`
+**Размер:** 26 строк
+
+```rsl
+macro Egr_Go(PartyID)
+   var stat=0;
+   var INN  = NULL, OGRN = NULL;
+   var isGetOldRequest=false;
+   var isOldRequest = false;
+   var response=NULL;
+   var client = getClient(PartyID);
+   if(               RSC_EGR_URLADDRESS=="" ) MsgBoxEx_(egr_mes[0]); stat=1; end;                    
+   if((stat==0) AND (RSC_SENDERID      =="")) MsgBoxEx_(egr_mes[1]); stat=1; end;                    
+   if( stat==0)  stat = get_INN_OGRN(                           @INN,@OGRN,PartyID); end;
+
+   if( stat==0)  stat = get_isGetOldRequest(@isGetOldRequest,@isOldRequest,PartyID); end;
+   if( stat==0)  
+      if(isGetOldRequest==false)
+         response = egr_getorder(client, INN, OGRN);
+         stat     = egr_getorder_work(response, isOldRequest, PartyID);
+      else
+         response = egr_getorderstatus(fegr.rec.ObjectID);
+         
+         stat     = egr_getorderstatus_work(response,INN, OGRN);
+         if(stat==0) 
+            stat  = egr_ResponseServiceData_work(client, response); // финальная функция обработки
+         end;
+      end;
+   end;
+end;
+```
+
+---
+
+## Пример 26: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/SECUR/scexp500.mac`
+**Тип:** `macro`
+**Размер:** 6 строк
+
+```rsl
+macro ExecuteStep( D, FirstDoc, _DocKind, ID_Operation, ID_Step )
+
+  private macro SayError( num, errmsg )
+    ScOpInsertError( DLDOC_ISSUE, ScOprServDoc, Avoiriss, num, errmsg );
+    return 1;
+  end;
+```
+
+---
+
+## Пример 27: `__PrepareBases`
+
+**Источник:** `Mac/DLNG/SECUR/profitax.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+  macro __PrepareBases()
+    if (GetPaymentInfo (cDeal.rec.DealID, PurpBase, pmpaym) != true)
+      RunError ("Ошибка при определении параметров платежа|не найдена запись о платеже по ценным бумагам");
+    end;
+    AvoirSalePaymID = pmpaym.rec.PaymentID; 
+    Amount =Floor_Money(pmpaym.rec.Amount);
+
+    if (GetPaymentInfo (cDeal.rec.DealID, PurpContr, pmpaym) != true)
+      RunError ("Ошибка при определении параметров платежа|не найдена запись о платеже в валюте");
+    end;
+    Price = MoneyL( pmpaym.rec.Amount / Amount );
+  end;
+```
+
+---
+
+## Пример 28: `FillEDNoDateAuthorByRef_CompoundRls`
+
+**Источник:** `Mac/Mbr/ufgenmes.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro FillEDNoDateAuthorByRef_CompoundRls(Ref : string)
+  var ed_nda = EDNoDateAuthor();
+  ed_nda.ConstructByTrn(Ref);
+
+  ЗаписатьПолеЛог( "EDNo",     ed_nda.EDNo );
+  ЗаписатьПолеЛог( "EDDate",   YYYYMMDD(ed_nda.EDDate) );
+  ЗаписатьПолеЛог( "EDAuthor", ed_nda.EDAuthor );
+end;
+```
+
+---
+
+## Пример 29: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/TRUST/tsoutmoney_of.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+MACRO ExecuteStep( _DlDoc, _FDoc, _DocKind, _ID_Operation, _ID_Step )
+
+  DlDoc                  = _DlDoc;
+  ID_Operation           = _ID_Operation;
+  ID_Step                = _ID_Step;
+  ДатаУменьшенияКапитала = Request.rec.CapitalDate; 
+  ДатаСписания           = Request.rec.FactTransferDate;
+  OrderFD      = TS_OrderFD( 0, Request.rec.OrderID );
+  OrderFD_OFBU = TS_OrderFD( 0, OrderFD.Order.rec.OFBU );
+  ReqFD        = TS_RequestFD( Request, null, OrderFD );
+
+  if( not CheckDate() )
+     return 1;
+  end;
+```
+
+---
+
+## Пример 30: `Блок`
+
+**Источник:** `Mac/BOOK/fm_rep.mac`
+**Тип:** `block`
+**Размер:** 10 строк
+
+```rsl
+    /*------------------------------------------------------------*/
+    /* получение номера счета */
+    private macro GetAccount()
+        var account = "";
+        if ( (DocKind == FM_SB_DEPOSIT) or (DocKind == FM_SB_LOGREC ) or 
+             (DocKind == FM_SB_DEPSC) or (DocKind == FM_SB_TRN) )
+            account = FRecs.depositr.rec.Account;
+        end;
+        return account;
+    end;
+```
+
+---
+
+## Пример 31: `ConstructMT202`
+
+**Источник:** `Mac/Mbr/swgd202r6.mac`
+**Тип:** `macro`
+**Размер:** 37 строк
+
+```rsl
+macro ConstructMT202( RespID )
+  var field_name, field_value, loop = 1, count = 0, wasRead = 1,
+      result = TRUE, error, fld, BankCode;
+
+  /* Последовательно считываем поля и заполняем лексемы */
+  while( loop )
+    fld = ПоляФормы.Value(count);
+    if( wasRead AND (not СчитатьПоле( field_name, field_value )) )
+      loop = 0;
+    else
+      if( (field_name != fld.Name) )
+        if( fld.ПолеОбязательно )
+          std.msg( "Не указано обязательное поле " + fld.Name );
+          result = FALSE;
+          loop = 0;
+        else
+          /* Пропускаем необязательные поля */
+          wasRead = 0;
+        end;
+      else
+        if( fld.ОбработатьПолеФормы( field_value ) )
+          if( fld.ВыполнитьФункцияБлока  )
+            wasRead = 1;
+          else
+            std.msg("Ошибка при выполнении функции блока " + fld.Name);
+            result = FALSE;
+            loop = 0;
+          end;
+        else
+          std.msg("Ошибка при обработке поля формы " + fld.Name);
+          result = FALSE;
+          loop = 0;
+        end;
+      end;
+      count = count + 1;
+    end;
+  end;
+```
+
+---
+
+## Пример 32: `GetMessageText`
+
+**Источник:** `Mac/DEPOSITR/ErrHandler.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+  macro GetMessageText()
+    var msg = "";
+    
+    var i = Errors.Size;
+    while (i > 0)
+      i = i - 1;
+      msg = msg + "|" + Errors(i);
+    end;
+    
+    msg = substr(msg, 2);
+
+    return msg;
+  end;
+```
+
+---
+
+## Пример 33: `ЗаписатьПоляИзСтрокиПеречисления`
+
+**Источник:** `Mac/Mbr/ufgenmes.mac`
+**Тип:** `macro`
+**Размер:** 24 строк
+
+```rsl
+macro ЗаписатьПоляИзСтрокиПеречисления(source : string, BlockName : string, FieldName : string, ParentBlockName : string)
+  var arrstr : TArray = StrCut(source);
+
+  for(var s, arrstr)
+    if(ParentBlockName)
+      УстановитьКонтекстБлокаЛог( ParentBlockName );
+      ЗаписатьПолеЛог( beginField, ParentBlockName );
+    end;
+    if(BlockName)
+      УстановитьКонтекстБлокаЛог( BlockName );
+      ЗаписатьПолеЛог( beginField, BlockName );
+    end;
+
+    ЗаписатьПолеЛог(FieldName, s);
+
+    if(BlockName)
+      ЗаписатьПолеЛог( endField, BlockName ) ;
+      УстановитьКонтекстБлокаЛог( ".." );
+    end;
+    if(ParentBlockName)
+      ЗаписатьПолеЛог( endField, ParentBlockName ) ;
+      УстановитьКонтекстБлокаЛог( ".." );
+    end;
+  end;
+```
+
+---
+
+## Пример 34: `GenMes_v2023_4_1`
+
+**Источник:** `Mac/Mbr/ufgm710.mac`
+**Тип:** `macro`
+**Размер:** 25 строк
+
+```rsl
+macro GenMes_v2023_4_1( addrMes, addrReq )
+  var err : integer = 0;
+
+  record wlmes(wlmes);
+  record wlReq(wlreq);
+  
+  SetBuff( wlReq, addrReq );
+  SetBuff( wlmes, addrMes );
+
+  var ed_nda = NULL;
+  ed_nda = EDNoDateAuthor();
+  ed_nda.ConstructByTrn(wlmes.TRN);
+  var EDReceiver : string = GetEDReceiver( wlReq.RecipientID, wlReq.RecipientcodeKind, wlReq.RecipientCode, null, true );
+  
+  ЗаписатьПолеЛог( "EDNo",       ed_nda.EDNo, true );
+  ЗаписатьПолеЛог( "EDDate",     YYYYMMDD(ed_nda.EDDate), true );
+  ЗаписатьПолеЛог( "EDAuthor",   ed_nda.EDAuthor, true );
+  ЗаписатьПолеЛог( "EDReceiver", EDReceiver, true );
+
+  UFEBS_InsertMesIdentificator(wlmes.MesID, ed_nda.EDNo, YYYYMMDD(ed_nda.EDDate), ed_nda.EDAuthor);
+
+  var BusinessDay = GetBusinessDay(wlreq.Queries);
+  if ( BusinessDay != date(0,0,0) )
+    ЗаписатьПолеЛог( "BusinessDay", YYYY_MM_DD(BusinessDay) );
+  end;
+```
+
+---
+
+## Пример 35: `GenMes`
+
+**Источник:** `Mac/Mbr/swgmn96r.mac`
+**Тип:** `macro`
+**Размер:** 33 строк
+
+```rsl
+macro GenMes( addrMes, addrReq )
+  var field_value, Narrative, Descript;
+
+  SetBuff( wlmes,  addrMes );
+  SetBuff( wlReq, addrReq );
+
+  PrintLog(2,"Генерация сообщения по МТn96 по RUR5");
+
+  /* 20 - номер транзакции (документа) */
+  ЗаписатьПолеЛог( TransactionReferenceNumberField, wlmes.TRN );
+
+  /* 21 Related Reference */
+  ЗаписатьПолеЛог( RelatedReferenceField, wlReq.RelatedRef );  
+
+  StrChangeRusXSet( wlReq.Queries, field_value, ST_RUR5 );
+  field_value = SwiftStrSplit( field_value, 35, 6 );
+  ЗаписатьПолеЛог( AnswersField, field_value );
+
+  ПрочитатьТекстЗапроса_Ответа( wlReq, Narrative, Descript );
+
+  StrChangeRusXSet( Narrative, field_value, ST_RUR5 );
+  field_value = SwiftStrSplit( field_value, 35, 20 );
+  ЗаписатьПолеЛог( NarrativeField, field_value );  
+  
+  if ( wlReq.InitFormIDMes )
+     f_wlmesfrm.FormID = wlReq.InitFormIDMes;
+     if( GetEQ(f_wlmesfrm) )     
+       field_value = substr( string(f_wlmesfrm.Name), 1, 3 ) + "\n" + GetSWIFTDate( wlReq.InitDateMes );
+     ЗаписатьПолеЛогВБлок( "11a", MTandDateOriginalMessage_RField, field_value );
+     if( not УстановитьКонтекстБлока( "" ) )
+        RunError("|Ошибка при установке пустого контекста блока");
+     end;
+  end;
+```
+
+---
+
+## Пример 36: `handleAppError`
+
+**Источник:** `Mac/DEPOSITR/wf_commonUtils.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro handleAppError(e, defErrCode : Integer) : TParameters
+  var code = defErrCode;
+  var msg = e.message;
+  if (isEqClass("TAppError", e.err))
+    code = e.err.code;
+    msg = e.err.message;
+  end;
+```
+
+---
+
+## Пример 37: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/VA/vab150.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+MACRO ExecuteStep(Buffer, dl_tick)
+
+	if (NOT АвтоПечать(dl_tick))
+	return 1;
+	end;
+```
+
+---
+
+## Пример 38: `AddMessage`
+
+**Источник:** `Mac/DEPOSITR/ErrHandler.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+  macro AddMessage(msg_var)
+    var msg = msg_var;
+    var ext_msg = "";
+    
+    if (IsEqClass("TrslError", msg_var))
+      msg = msg_var.Message;
+      ext_msg = "| Модуль:" + msg_var.Module + "| строка:" + msg_var.Line;
+    end;
+    
+    if ((msg != null) and (msg != ""))
+      if (not IsDecorated(msg))
+        Errors(Errors.Size) = msg + ext_msg;
+      end;
+    end;
+  end;
+```
+
+---
+
+## Пример 39: `GenMes_v2024_4_2`
+
+**Источник:** `Mac/Mbr/ufgm731.mac`
+**Тип:** `macro`
+**Размер:** 45 строк
+
+```rsl
+macro GenMes_v2024_4_2( addrMes, addrReq )
+  var err : integer = 0;
+
+  record wlmes(wlmes);
+  record wlReq(wlreq);
+  
+  SetBuff( wlReq, addrReq );
+  SetBuff( wlmes, addrMes );
+
+  var RsbWldRequestObj : RsbWlRequest = RsbWlRequest( wlreq.ReqID ); // Создаём Rsb-объект
+
+  var ed_nda = NULL;
+  ed_nda = EDNoDateAuthor();
+  ed_nda.ConstructByTrn(wlmes.TRN);
+  var EDReceiver : string = GetEDReceiver( wlReq.RecipientID, wlReq.RecipientcodeKind, wlReq.RecipientCode, null, true );
+  
+  ЗаписатьПолеЛог( "EDNo",       ed_nda.EDNo, true );
+  ЗаписатьПолеЛог( "EDDate",     YYYYMMDD(ed_nda.EDDate), true );
+  ЗаписатьПолеЛог( "EDAuthor",   ed_nda.EDAuthor, true );
+  ЗаписатьПолеЛог( "EDReceiver", EDReceiver, true );
+
+  UFEBS_InsertMesIdentificator(wlmes.MesID, ed_nda.EDNo, YYYYMMDD(ed_nda.EDDate), ed_nda.EDAuthor);
+
+  /*Элемент RequestInfo*/
+  var r_rqmessbp:TRecHandler = TRecHandler( "rqmessbp" );
+  var rqmessbp = RsbWldRequestObj.RqMesSBP();
+  rqmessbp.First( r_rqmessbp );
+  УстановитьКонтекстБлокаЛог( "RequestInfo" );
+    ЗаписатьПолеЛог( beginField, "RequestInfo" );
+    ЗаписатьПолеЛог( "BIC", RsbWldRequestObj.BIC, TRUE );
+    ЗаписатьПолеЛог( "CorrespAcc", RsbWldRequestObj.CorrespAcc, TRUE );
+    ЗаписатьПолеЛог( "Sum", MoneyToStrUFBS( r_rqmessbp.rec.Sum ), TRUE );
+    ЗаписатьПолеЛог( "LiquidityTransKind", r_rqmessbp.rec.LiquidityTransKind, TRUE );
+    ЗаписатьПолеЛог( "IsNextDay", r_rqmessbp.rec.IsNextDay );
+    ЗаписатьПолеЛог( endField, "RequestInfo" );
+  УстановитьКонтекстБлокаЛог( ".." );
+
+  /*Элементы RequestReason и EDRefID не заполняются*/
+
+  return true; /*Успешное завершение*/
+  
+  OnError(er)
+    std.msg(String(RsbGetError(er), "|Модуль: ", er.Module, " Строка: ", er.Line));
+    return FALSE;
+end;
+```
+
+---
+
+## Пример 40: `getTopErrorMessage`
+
+**Источник:** `Mac/DEPOSITR/wf_appUtils.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+  macro getTopErrorMessage(): string
+    var msg = "";
+    topErrorMessage(msg);
+    return msg;
+  end;
+```
+
+---

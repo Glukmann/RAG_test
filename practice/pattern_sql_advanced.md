@@ -1065,3 +1065,1173 @@ macro GetClientProductList(Request)
 
 ---
 
+## Пример 16: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/SECUR/old/screp0020.mac`
+**Тип:** `macro`
+**Размер:** 22 строк
+
+```rsl
+macro ExecuteStep( doc, FDoc)
+  record  deal(dl_tick);
+  var     FD;
+  var     Dc, Di, Dk, Dp;
+
+  SetBuff( deal, FDoc ); 
+
+  FD = SPFirstDoc( deal, false );
+
+  GetOprDate( FD.GetKindDate(DATE_DEALDATE), Dc );
+  GetOprDate( FD.GetKindDate(DATE_DEALEXEC), Di );
+
+  if( Dc != Di )
+     if( false)//ПоставитьСнятьВнебалансЧастьРЕПО( FD, FDoc, FD.GetRQ(DLRQ_TYPE_PAYMENT).rec.Amount, FD.GetRQ(DLRQ_TYPE_PAYMENT).rec.FIID, FD.DateArray[DATE_DEALDATE], true ) )
+        return 1;
+     end;
+  else
+     if( not ОбновитьСтатусЧастиСделки( FD.dl_leg, DL_LEG_BALANCE ) )
+        msgbox("Ошибка при изменении статуса сделки");
+        return 1;
+     end;
+  end;
+```
+
+---
+
+## Пример 17: `GetAccountRest`
+
+**Источник:** `Mac/DLNG/SECUR/sectr010.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro GetAccountRest(accNumb,accChap,accCur,restDate)
+  var cmd;
+  cmd=RsdCommand(RslDefCon,"begin ? := RSB_ACCOUNT.restall(?,?,?,?,?); end;");
+  cmd.AddParam("retval",RSDBP_RETVAL,V_NUMERIC);
+  cmd.AddParam("p_account",RSDBP_IN,accNumb);
+  cmd.AddParam("p_chapter",RSDBP_IN,accChap);
+  cmd.AddParam("p_cur",RSDBP_IN,accCur);
+  cmd.AddParam("p_date",RSDBP_IN,restDate);
+  cmd.AddParam("p_rest_cur",RSDBP_IN,accCur);
+  cmd.execute();
+  return cmd.value("retval");
+OnError(er)
+  return numeric(0);
+end;
+```
+
+---
+
+## Пример 18: `InsertDCOMSUM`
+
+**Источник:** `Mac/DLNG/SECUR/Convert/2728_OutAccData.mac`
+**Тип:** `macro`
+**Размер:** 22 строк
+
+```rsl
+  macro InsertDCOMSUM( DealID, Kind, ComDate, Sum, NDS, Curr, PayCurr )
+    var cmd, i = 0;
+
+     cmd = RsdCommand( "insert into dcomsum_buf ( t_DealID, t_Kind, t_Date, t_Sum, t_NDS, t_Cur, t_PayCurr ) " +
+                       "                  values ( ?, ?, ?, ?, ?, ?, ? ) " );
+     cmd.NullConversion = true;
+
+     cmd.addParam( "", RSDBP_IN, DealID );
+     cmd.addParam( "", RSDBP_IN, Kind );
+     cmd.addParam( "", RSDBP_IN, ComDate );
+     cmd.addParam( "", RSDBP_IN, Sum );
+     cmd.addParam( "", RSDBP_IN, NDS );
+     cmd.addParam( "", RSDBP_IN, Curr );
+     cmd.addParam( "", RSDBP_IN, PayCurr );
+
+     cmd.execute();
+
+     OnError(err);
+
+     Message( "Строка: " + err.line + " | " + err.message );
+
+  end;
+```
+
+---
+
+## Пример 19: `ReSelectGroupProc`
+
+**Источник:** `Mac/DEPOSITR/ReSelectGroupFNSPercentInfo.mac`
+**Тип:** `macro`
+**Размер:** 52 строк
+
+```rsl
+macro ReSelectGroupProc(reSelectBank, percInfoArr)
+    var stat = true;
+    var i = 0;
+    var AmountIPBefore = 0, AmountBefore = 0;
+    var errCode = 0, errText = "", chgPrz = percInfoArr[i].rec.chgPrz;
+
+    SetOutput(getFullRepName(), false);
+    
+    if (percInfoArr.size > 0)
+        printHeader();
+    end;
+    
+    for (i, 0, percInfoArr.size - 1)
+        AmountBefore = percInfoArr[i].rec.prcAmount;
+        AmountIPBefore = percInfoArr[i].rec.prcAmountIP;
+        
+        if (percInfoArr[i].rec.isReady == "X")
+            errCode = 22395;
+        end;
+        
+        if (errCode == 0)
+            if (percInfoArr[i].rec.unloadFlag == "X")
+                errCode = calcChgPrz(reSelectBank, percInfoArr[i].rec, @chgPrz);
+            end;
+            
+            if (errCode == 0)
+                var cmd = RsdCommand("BEGIN ? := RSU_RTLFNS.ReSelectFNSData(?, ?, ?, ?); END;");
+
+                cmd.addParam("ok",              RSDBP_RETVAL, V_INTEGER);
+                cmd.addParam("ReCalcPcIE",      RSDBP_IN,     0);
+                cmd.addParam("period",          RSDBP_IN,     percInfoArr[i].rec.period);
+                cmd.addParam("errorRefAccount", RSDBP_IN,     percInfoArr[i].rec.clientID);
+                cmd.addParam("errorCode",       RSDBP_IN,     chgPrz);
+
+                cmd.NullConversion = true;
+                cmd.execute();
+            end;
+        end;
+        
+        if (errCode > 0)
+            errText = SetParmMessage(GetErrMessage(errCode));
+        end;
+
+        printLine(i, percInfoArr[i].rec, AmountBefore, AmountIPBefore, errText);
+    end;
+    
+    if (percInfoArr.size > 0)
+        printFooter();
+    end;
+
+    return stat;
+end;
+```
+
+---
+
+## Пример 20: `GetAccDprt`
+
+**Источник:** `Mac/LC/lc_common.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro GetAccDprt(Account : string, FIID : integer, Chapter : integer) : integer
+  var Department = -1;
+  var rs = execSQLselect( "SELECT t_Department "
+                          "  FROM daccount_dbt "
+                          " WHERE t_Chapter = :Chapter "
+                          "   AND t_Account = :Account "
+                          "   AND t_Code_Currency = :FIID ",
+                          makeArray( SQLParam("Chapter", Chapter),
+                                     SQLParam("Account", Account),
+                                     SQLParam("FIID",    FIID   ) )
+                        );
+  if(rs and rs.moveNext())
+    Department = rs.value("t_Department");
+  end;
+```
+
+---
+
+## Пример 21: `SfSrv_AddSfDocs`
+
+**Источник:** `Mac/Cb/sfsrv_lib.mac`
+**Тип:** `macro`
+**Размер:** 24 строк
+
+```rsl
+macro SfSrv_AddSfDocs( Action, SfDefCom, AccTrnID:bigint, AccTrnID_NDS:bigint )
+
+  var strSql : string; 
+  var cmd : RsdCommand;
+
+  strSql = " UPDATE dsfdeftmp_tmp SET t_AccTrnID = ?, t_AccTrnID_NDS = ? "
+           " WHERE t_feeType = ? AND t_commNumber = ? AND t_conID = ? AND t_DatePeriodBegin = ? AND t_Action = ? ";
+  
+  cmd = RsdCommand( strSql );
+
+  cmd.addParam( "", RSDBP_IN, AccTrnID );
+  cmd.addParam( "", RSDBP_IN, AccTrnID_NDS );
+
+  cmd.addParam( "", RSDBP_IN, SfDefCom.feeType );
+  cmd.addParam( "", RSDBP_IN, SfDefCom.commNumber );
+  cmd.addParam( "", RSDBP_IN, SfDefCom.SfContrID );
+  cmd.addParam( "", RSDBP_IN, SfDefCom.datePeriodBegin );
+  cmd.addParam( "", RSDBP_IN, Action );
+
+  cmd.execute();
+
+  return 0;
+
+end;
+```
+
+---
+
+## Пример 22: `prep`
+
+**Источник:** `Mac/DLNG/MMARK/mmautokvit.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+MACRO prep()
+    //dialog_flag = SetDialogFlag(0);
+    ClearKvit();
+
+    var stat = execStoredFunc("RSI_MMARK.FillKvitTmp", V_INTEGER,
+        makeArray(
+            SQLParam("", 0),
+            SQLParam("", 0),
+            SQLParam("", {curdate}),
+            SQLParam("", 0)
+        )
+    );
+
+    //Prnt();
+END;
+```
+
+---
+
+## Пример 23: `CheckPaymReceiverName`
+
+**Источник:** `Mac/Cb/rmcmptl.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+macro CheckPaymReceiverName
+( PaymentID:integer, 
+  SecondError:@integer, 
+  fromInPmPrePro:bool,
+  CmpAttr : integer //м.б. null
+):integer
+
+  var arr = makeArray( SQLParam( "p_PaymentID", PaymentID),
+                       SQLParam( "p_CompareInPaym", IfThenElse(fromInPmPrePro, 1, 0)),
+                       //SQLParam( "p_SecondError", IfThenElse(SecondError,SecondError,0), RSDBP_OUT ) 
+					   SQLParam( "p_SecondError", V_INTEGER, RSDBP_OUT ) 
+                     );
+  if(CmpAttr != null)
+    arr[arr.size] = SQLParam( "p_CmpAttr", CmpAttr)
+  end;
+```
+
+---
+
+## Пример 24: `UFEBS_InsertMesIdentificator`
+
+**Источник:** `Mac/Mbr/ufgenmes.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+macro UFEBS_InsertMesIdentificator(MesID : integer, EDNo : string, EDDate : string, EDAuthor : string)
+  execStoredFunc( "WLD_UFEBS.InsertMesIdentificator", V_UNDEF, makeArray ( SQLParam("p_MesID",    MesID),
+                                                                            SQLParam("p_EDNo",     EDNo),
+                                                                            SQLParam("p_EDDate",   EDDate),
+                                                                            SQLParam("p_EDAuthor", EDAuthor),
+                                                                            SQLParam("p_Tmp",      1),
+                                                                            SQLParam("p_ObjType",  OBJTYPE_MES)
+                                                                          ) );
+end;
+```
+
+---
+
+## Пример 25: `ReadED711MessageFields`
+
+**Источник:** `Mac/Mbr/ufgd711_class.mac`
+**Тип:** `macro`
+**Размер:** 94 строк
+
+```rsl
+macro ReadED711MessageFields( ED711MessageFields : @TED711MessageFields )
+  
+  var fieldname = "", fieldvalue = "", blockname = "";
+  
+  while( СчитатьПоле(fieldname, fieldvalue, blockname) )
+        
+    if ( blockname == "" )
+      if ( fieldname == "EDNo" )
+        ED711MessageFields.EDNo = int(fieldvalue);
+      elif ( fieldname == "EDDate" )
+        ED711MessageFields.EDDate = ToDateYYYY_MM_DD(fieldvalue);
+      elif ( fieldname == "EDAuthor" )
+        ED711MessageFields.EDAuthor = fieldvalue;
+      elif ( fieldname == "EDReceiver" )
+        ED711MessageFields.EDReceiver = fieldvalue;
+      elif ( fieldname == "CreationReason" )
+        ED711MessageFields.CreationReason = fieldvalue;
+      elif ( fieldname == "CreationDateTime" )
+        ED711MessageFields.CreationDateTime = fieldvalue;
+      end;
+    elif ( blockname == "BICAccount" )    
+      if ( fieldname == beginField )
+        ED711MessageFields.BICAccount = TED711BICAccountFields();
+      elif ( fieldname == "BIC" )
+        ED711MessageFields.BICAccount.BIC = fieldvalue;
+      elif ( fieldname == "CorrespAcc" )  
+        ED711MessageFields.BICAccount.CorrespAcc = fieldvalue;
+      end;    
+    elif ( blockname == "FPSLiquidityInfo" )  
+      if ( fieldname == beginField )
+        ED711MessageFields.FPSLiquidityInfo = TED711FPSLiquidityInfoFields();
+      elif ( fieldname == "BusinessDay" )
+        ED711MessageFields.FPSLiquidityInfo.BusinessDay = ToDateYYYY_MM_DD(fieldvalue);
+      elif ( fieldname == "FPSLiquidity" )
+        ED711MessageFields.FPSLiquidityInfo.FPSLiquidity = moneyL(fieldvalue);
+        ED711MessageFields.FPSLiquidityInfo.isReadFPSLiquidity = true;
+      elif ( fieldname == "FPSEnterPosition" )
+        ED711MessageFields.FPSLiquidityInfo.FPSEnterPosition = moneyL(fieldvalue);
+        ED711MessageFields.FPSLiquidityInfo.isReadFPSEnterPosition = true;
+      elif ( fieldname == "FPSPosition" )
+        ED711MessageFields.FPSLiquidityInfo.FPSPosition = moneyL(fieldvalue);
+        ED711MessageFields.FPSLiquidityInfo.isReadFPSPosition = true;
+      elif ( fieldname == "CurrentBalance" )
+        ED711MessageFields.FPSLiquidityInfo.CurrentBalance = moneyL(fieldvalue);
+      elif ( fieldname == "ArrestSum" )
+        ED711MessageFields.FPSLiquidityInfo.ArrestSum = moneyL(fieldvalue);
+      elif ( fieldname == "MandatoryReserveSum" )
+        ED711MessageFields.FPSLiquidityInfo.MandatoryReserveSum = moneyL(fieldvalue);
+      elif ( fieldname == "CreditLimitSum" )
+        ED711MessageFields.FPSLiquidityInfo.CreditLimitSum = moneyL(fieldvalue);
+      elif ( fieldname == "CollectionOrdersSum" )
+        ED711MessageFields.FPSLiquidityInfo.CollectionOrdersSum = moneyL(fieldvalue);
+      end;
+    elif ( blockname == "FPSTurnover" )
+      if ( fieldname == beginField )
+        ED711MessageFields.FPSTurnover = TED711FPSTurnoverFields();
+      elif ( fieldname == "FPSCreditSum" )
+        ED711MessageFields.FPSTurnover.FPSCreditSum = moneyL(fieldvalue);
+        ED711MessageFields.FPSTurnover.isReadFPSCreditSum = true;
+      elif ( fieldname == "FPSDebetSum" )
+        ED711MessageFields.FPSTurnover.FPSDebetSum = moneyL(fieldvalue);
+        ED711MessageFields.FPSTurnover.isReadFPSDebetSum = true;
+      end;
+    elif ( blockname == "LiqEDID" )
+      if ( fieldname == beginField )
+        ED711MessageFields.LiqEDID[ED711MessageFields.LiqEDID.size] = TED711LiqEDIDFields();
+      elif ( fieldname == "Sum" )
+        ED711MessageFields.LiqEDID[ED711MessageFields.LiqEDID.size - 1].Sum = moneyL(fieldvalue);
+        ED711MessageFields.LiqEDID[ED711MessageFields.LiqEDID.size - 1].isReadSum = true;
+      elif ( fieldname == "LiquidityTransKind" )
+        ED711MessageFields.LiqEDID[ED711MessageFields.LiqEDID.size - 1].LiquidityTransKind = fieldvalue;
+      end;
+    elif ( blockname == "LiqEDID\\EDRefID" )
+      if ( fieldname == beginField )
+        ED711MessageFields.LiqEDID[ED711MessageFields.LiqEDID.size - 1].EDRefID = TED711NoDateAuthorFields();
+      elif ( fieldname == "EDNo" )
+        ED711MessageFields.LiqEDID[ED711MessageFields.LiqEDID.size - 1].EDRefID.EDNo = int(fieldvalue);
+      elif ( fieldname == "EDDate" )
+        ED711MessageFields.LiqEDID[ED711MessageFields.LiqEDID.size - 1].EDRefID.EDDate = ToDateYYYY_MM_DD(fieldvalue);
+      elif ( fieldname == "EDAuthor" )
+        ED711MessageFields.LiqEDID[ED711MessageFields.LiqEDID.size - 1].EDRefID.EDAuthor = fieldvalue;        
+      end;
+    elif ( blockname == "InitialED" )
+      if ( fieldname == beginField )
+        ED711MessageFields.InitialED = TED711NoDateAuthorFields();
+      elif ( fieldname == "EDNo" )
+        ED711MessageFields.InitialED.EDNo = int(fieldvalue);
+      elif ( fieldname == "EDDate" )
+        ED711MessageFields.InitialED.EDDate = ToDateYYYY_MM_DD(fieldvalue);
+      elif ( fieldname == "EDAuthor" )
+        ED711MessageFields.InitialED.EDAuthor = fieldvalue;
+      end;
+    end;
+  end;
+```
+
+---
+
+## Пример 26: `GenDoc`
+
+**Источник:** `Mac/Mbr/ufgd463.mac`
+**Тип:** `macro`
+**Размер:** 34 строк
+
+```rsl
+macro GenDoc( addrMes )
+debugbreak;
+  var xml:object = ActiveX( "MSXML.DOMDocument" );
+  
+  SetBuff( wlmes, addrMes );
+
+  PrintLog( 2, "Генерация информационного сообшения по ED463" );
+  
+  var FieldName, FieldValue, BlockName;
+  var Annotation, CtrlCode, RefEDNo, RefEDDate, RefEDAuthor, ErrorDiagnostic;
+  
+  while( СчитатьПоле(FieldName, FieldValue, BlockName) )
+    if( BlockName == "" )
+      if( FieldName == "CtrlCode" )
+        CtrlCode = FieldValue;
+      end;
+    elif( BlockName == "Annotation" )
+      if( FieldName == "Annotation" )
+        Annotation = FieldValue;
+      end;
+    elif( BlockName == "EDRefID" )
+      if( FieldName == "EDNo" )
+        RefEDNo = FieldValue;
+      elif( FieldName == "EDDate" )
+        RefEDDate = FieldValue;
+      elif( FieldName == "EDAuthor" )
+        RefEDAuthor = FieldValue;
+      end;
+    elif( BlockName == "ErrorDiagnostic" )
+      if( FieldName == "ErrorDiagnostic" )
+        ErrorDiagnostic = FieldValue;
+      end;
+    end;
+  end;
+```
+
+---
+
+## Пример 27: `DL_GetDateWorkDayForPayStep`
+
+**Источник:** `Mac/DLNG/dl_calendtls.mac`
+**Тип:** `macro`
+**Размер:** 26 строк
+
+```rsl
+MACRO DL_GetDateWorkDayForPayStep(dateFrom:DATE, calenId:INTEGER, fiid:INTEGER, isObl:BOOL, isEarly:@BOOL, EarlyOnlyForObl, NoSettlCalend)
+  var WorkDate = dateFrom;
+  isEarly = false;
+
+  if ((ValType(dateFrom) == V_DATE) and (dateFrom > date(1,1,1900)))
+    var cmd = RsdCommand( "begin ?:= RSI_DlCalendars.GetDateWorkDayForPayStep(?,?,?,?,?,?,?);\n end; " );
+    cmd.addParam("", RSDBP_OUT, V_DATE);
+    cmd.addParam("", RSDBP_IN, dateFrom);
+    cmd.addParam("", RSDBP_IN, calenId);
+    cmd.addParam("", RSDBP_IN, fiid);
+    cmd.addParam("", RSDBP_IN, IIF(isObl,1,0));
+    cmd.addParam("", RSDBP_OUT, V_INTEGER);
+    if (ValType(EarlyOnlyForObl) == V_BOOL)
+      cmd.addParam("", RSDBP_IN,IIF(EarlyOnlyForObl,1,0));
+    else
+      cmd.addParam("", RSDBP_IN,0);
+    end;
+    if (ValType(NoSettlCalend) == V_INTEGER)
+      cmd.addParam("", RSDBP_IN,NoSettlCalend);
+    else
+      cmd.addParam("", RSDBP_IN,0);
+    end;
+    cmd.execute();
+    WorkDate = SQL_ConvTypeDate(cmd.value(0));
+    isEarly = SQL_ConvTypeInteger(cmd.value(5)) == 1;
+  end;
+```
+
+---
+
+## Пример 28: `ReadFields`
+
+**Источник:** `Mac/Mbr/ufgd332.mac`
+**Тип:** `macro`
+**Размер:** 42 строк
+
+```rsl
+  macro ReadFields() : bool
+    var fieldname = "", fieldvalue = "", blockname = "";
+    while ( СчитатьПоле(fieldname, fieldvalue, blockname) )
+      if  (blockname == "")
+        if  (fieldname == "EDAuthor")
+          OriginatorUIS = fieldvalue;
+        elif(fieldname == "EDReceiver")
+          RecipientUIS = fieldvalue;
+        end;
+      elif(blockname == "PartInfo")
+        if  (fieldname == "PartNo")
+          PartNo = fieldvalue;
+        elif(fieldname == "PartAggregateID")
+          PartAggregateID = fieldvalue;
+        end;
+      elif(blockname == "TotalLiquidity")
+        if  (fieldname == "BIC")
+          TotalLiquidity.BIC = fieldvalue;
+        end;
+      elif(blockname == "TotalLiquidity\\Liquidity")
+        if  (fieldname == "LiquiditySum")
+          TotalLiquidity.LiquiditySum = fieldvalue;
+        end;
+      elif(blockname == "PURLiquidity")
+        if  (fieldname == beginField)
+          PURLiquidity[ PURLiquidity.size ] = LiquidityInfo();
+        elif(fieldname == "BIC")
+          PURLiquidity[ PURLiquidity.size-1 ].BIC = fieldvalue;
+        end;
+      elif(blockname == "PURLiquidity\\Liquidity")
+        if  (fieldname == "LiquiditySum")
+          PURLiquidity[ PURLiquidity.size-1 ].LiquiditySum = fieldvalue;
+        end;
+      elif(blockname == "InitialED")
+        if  (fieldname == "EDDate")
+          EDDate_InitMes = fieldvalue;
+        end;
+      end; 
+    end; // while ( СчитатьПоле(fieldname, fieldvalue, blockname) )
+
+    return TRUE;
+  end;
+```
+
+---
+
+## Пример 29: `GenDoc`
+
+**Источник:** `Mac/Mbr/swgd752.mac`
+**Тип:** `macro`
+**Размер:** 62 строк
+
+```rsl
+macro GenDoc( addrMes )
+  SetBuff( wlmes, addrMes );
+
+  PrintLog( 2, "Генерация учетного объекта по сообщению MT750" );
+  
+  var ErrMsg = "";
+  var fieldName = "", fieldValue = "", OK : bool;
+  var field20 = "",
+      field21 = "",
+      field23 = "",
+      field30 = "",
+      field32 = "", 
+      field71 = "", 
+      field33 = "",
+      field33Name = "",
+      field53 = "",
+      field53Name = "",
+      field54 = "",
+      field54Name = "",
+      field72 = "", 
+      field79 = "", 
+      field57 = "",
+      field57Name = "";
+
+  while ( СчитатьПоле(fieldName, fieldValue) )
+    OK = true;
+
+    if( fieldName == TransactionReferenceNumberField )
+      field20 = fieldValue;
+    elif( fieldName == RelatedReferenceField )
+      field21 = fieldValue;
+    elif( fieldName == BankOperationCodeField )
+      field23 = fieldValue;
+    elif( fieldName == ValueDateField )
+      field30 = fieldValue;
+    elif( fieldName == ValueDateCurrencyCodeAmountField_B )
+      field32 = fieldValue;
+    elif( fieldName == DetailsOfChargesField_D )
+      field71 = fieldValue;
+    elif( InList(fieldName, TotalAmountClaimedField, CurrencyOriginalOrderedAmountField) )
+      field33 = fieldValue;
+      field33Name = fieldName;
+    elif( substr(fieldName,1,2) == Sender_sCorrespondentField )
+      field53 = fieldValue;
+      field53Name = fieldName;
+    elif( substr(fieldName,1,2) == Receiver_sCorrespondentField )
+      field54 = fieldValue;
+      field54Name = fieldName;
+    elif( fieldName == SenderToReceiverInformationField_Z )
+      field72 = fieldValue;
+    elif( fieldName == NarrativeDescriptionField_Z )
+      field79 = fieldValue;
+    elif( substr(fieldName, 1, 2) == AccountWithInstitutionField )
+      field57 = fieldValue;
+      field57Name = fieldName;
+    end;
+
+    if( not OK )
+      std.msg("Ошибка при обработке поля формы " + fieldname);
+      return FALSE;
+    end;
+  end;
+```
+
+---
+
+## Пример 30: `IdentClientByReqFindClientPerson`
+
+**Источник:** `Mac/Cb/ws_client_lib.mac`
+**Тип:** `macro`
+**Размер:** 103 строк
+
+```rsl
+macro IdentClientByReqFindClientPerson(ClientRequisites : @variant, pLegalForm)
+    var result = TClientIdentSuccess;
+    var finder = TClientIdentFinder;
+
+    var LegalForm = ReqTypePersn;
+    if (ValType(pLegalForm) != V_UNDEF)
+        LegalForm = pLegalForm;
+    end;
+    
+    result.ReqID = "";
+    result.ClientFullName = "";
+    result.CountRezult = 0;
+    result.ClientID = 0;
+        
+    finder.AddCondition(finder.COND_AND, "PS.T_PERSONID = PT.T_PARTYID");
+
+    if (ClientRequisites.FullName != null)
+        finder.AddCondition(finder.COND_AND, "PT.T_NORMALIZEDNAME = ?");
+        finder.AddParam(NormalizeString(ClientRequisites.FullName));
+    else
+        if (ClientRequisites.FIO != null)
+            var FIO = ClientRequisites.FIO;
+            finder.AddCondition(finder.COND_AND, "RSI_RSB_STRING.NormalizeString2(PS.T_NAME1) = ?");
+            finder.AddParam(NormalizeString(FIO.Surname));
+                
+            finder.AddCondition(finder.COND_AND, "RSI_RSB_STRING.NormalizeString2(PS.T_NAME2) = ?");
+            finder.AddParam(NormalizeString(FIO.FirstName));
+                
+            if (FIO.Patronymic != null)
+                finder.AddCondition(finder.COND_AND, "RSI_RSB_STRING.NormalizeString2(PS.T_NAME3) = ?");
+                finder.AddParam(NormalizeString(FIO.Patronymic));
+            end;
+        end;
+    end;
+    
+    if ((ClientRequisites.BirthDate != null) and (ClientRequisites.BirthDate != ZeroValue(V_DATE)))
+        finder.AddCondition(finder.COND_AND, "PS.T_BORN = ?");
+        finder.AddParam(ClientRequisites.BirthDate);
+    end;
+        
+    var IDoc = ClientRequisites.IDoc;
+    if (LegalForm == ReqTypePersn)
+        if (ClientRequisites.IDoc != null)
+            if(((IDoc.SerDoc != "") or (IDoc.NumDoc != "")) and (IDoc.TypeDoc != null))
+                finder.AddCondition(finder.COND_AND, "PS.T_PERSONID = PD.T_PERSONID");
+                finder.AddCondition(finder.COND_AND, "PD.T_PAPERKIND = ?");
+                finder.AddParam(Int(IDoc.TypeDoc));
+
+                if(IDoc.SerDoc != "") 
+                    finder.AddCondition(finder.COND_AND, 
+                    "REGEXP_REPLACE(RSI_RSB_STRING.NormalizeIDocSer(PD.T_PAPERSERIES), '(\\-|\\s+)') = REGEXP_REPLACE(?, '(\\-|\\s+)')");
+                    finder.AddParam(NormalizeIDocSer(IDoc.SerDoc));
+                end;
+
+                if(IDoc.NumDoc != "") 
+                    finder.AddCondition(finder.COND_AND, "PD.T_PAPERNUMBER = ?");
+                    finder.AddParam(IDoc.NumDoc);
+                end;
+            else
+                finder.AddCondition(finder.COND_AND, "PS.T_PERSONID = PD.T_PERSONID(+)");
+                finder.AddCondition(finder.COND_AND, "PD.T_PAPERKIND(+) = 0");
+            end;
+        else
+            finder.AddCondition(finder.COND_AND, "PS.T_PERSONID = PD.T_PERSONID(+)");
+            finder.AddCondition(finder.COND_AND, "PD.T_PAPERKIND(+) = 0");
+        end;
+    elif (LegalForm == ReqTypePersnFssp)
+        if(((IDoc.SerDoc != "") or (IDoc.NumDoc != "")) and (IDoc.TypeDoc != null))
+            finder.AddCondition(finder.COND_AND, "(PD.t_paperkind is null or (");
+            finder.AddCondition(finder.COND_NO, "PD.T_PAPERKIND = ?");
+
+            var TypeDoc = GetPaperKindFromConnectDocKind(IDoc.TypeDoc);
+            finder.AddParam(TypeDoc);
+
+            if(IDoc.SerDoc != "") 
+                finder.AddCondition(finder.COND_AND, 
+                "REGEXP_REPLACE(RSI_RSB_STRING.NormalizeIDocSer(PD.T_PAPERSERIES), '(\\-|\\s+)') = REGEXP_REPLACE(?, '(\\-|\\s+)')");
+                finder.AddParam(NormalizeIDocSer(IDoc.SerDoc));
+            end;
+
+            if(IDoc.NumDoc != "") 
+                finder.AddCondition(finder.COND_AND, "PD.T_PAPERNUMBER = ?");
+                finder.AddParam(IDoc.NumDoc);
+            end;
+
+            finder.AddCondition(finder.COND_NO, "))");
+        else
+            finder.AddCondition(finder.COND_AND, "PD.T_PAPERKIND = 0");
+        end;
+    end;
+ 
+    finder.Find(LegalForm);
+        
+    result.CountRezult = finder.CountRezult();
+    result.ClientID = finder.ClientID();
+    result.ClientFullName = finder.ClientFullName();
+
+    if(result.ClientID > 0)
+      GetTwins(result.ClientID, result.Twins);
+    end;
+      
+    return result;
+end;
+```
+
+---
+
+## Пример 31: `Блок`
+
+**Источник:** `Mac/BOOK/GZRputpr.mac`
+**Тип:** `block`
+**Размер:** 12 строк
+
+```rsl
+	rest_before_cmd.addParam( "Referenc", RSDBP_IN,rs.value("t_Referenc") );
+	rest_before_cmd.addParam( "Date_Document", RSDBP_IN,DateReport );
+	rest_before_cmd.addParam( "NumDayDoc", RSDBP_IN,NumDayDoc );
+	rest_before_cmd.addParam( "Date_Document2", RSDBP_IN,DateReport );
+    rest_before_cmd.execute;
+    rest_before_rs = RsdRecordset( rest_before_cmd );
+    if (rest_before_rs.moveNext)
+      RestBefore = rest_before_rs.value("t_Rest");
+    else
+      RestBefore = 0;
+    end;
+    rest_before_rs.close;
+```
+
+---
+
+## Пример 32: `CheckTaxPropForUfebsMes`
+
+**Источник:** `Mac/Cb/pmtax.mac`
+**Тип:** `macro`
+**Размер:** 57 строк
+
+```rsl
+macro CheckTaxPropForUfebsMes
+( Payment : RsbPayment,
+  MesForm : string,
+  ErrMsg : @string
+
+) : integer
+
+  execSQL("delete from dpmmeschk_tmp");
+
+  var params : TArray = makeArray
+  ( SQLParam( "p_Type", MesForm ),
+    SQLParam( "p_PaymentID", Payment.PaymentID ),
+    SQLParam( "p_DocKind", Payment.DocKind ),
+    SQLParam( "p_RmNumber", Payment.Number ),
+    SQLParam( "p_RmDate", Payment.Date ),
+    SQLParam( "p_PayerINN", Payment.PayerINN ),
+    SQLParam( "p_ReceiverINN", Payment.ReceiverINN ),
+    SQLParam( "p_TaxAuthorState", Payment.TaxAuthorState ),
+    SQLParam( "p_BTTTICode", Payment.BTTTICode ),
+    SQLParam( "p_OkatoCode", Payment.OkatoCode ),
+    SQLParam( "p_TaxPmDate", Payment.TaxPmDate ),
+    SQLParam( "p_TaxPmNumber", Payment.TaxPmNumber ),
+    SQLParam( "p_PartPaymDateMain", Payment.PartPaymDateMain),
+    SQLParam( "p_UIN", Payment.UIN ),
+    SQLParam( "p_PayerAccount", Payment.PayerAccount ),
+    SQLParam( "p_ReceiverAccount", Payment.ReceiverAccount),
+    SQLParam( "p_TaxPmGround", Payment.TaxPmGround),
+    SQLParam( "p_TaxPmPeriod", Payment.TaxPmPeriod),
+    SQLParam( "p_ReceiverBankID", Payment.ReceiverBankID),
+    SQLParam( "p_ReceiverCorrAccNostro", Payment.ReceiverCorrAccNostro),
+    SQLParam( "p_PrimDocOrigin", Payment.PrimDocOrigin),
+    SQLParam( "p_Ground", Payment.Ground),
+    SQLParam( "p_ReceiverName", Payment.ReceiverName),
+    SQLParam( "p_TaxOperID", Payment.TaxOperID)
+  );
+
+  var retval : integer = execStoredFunc( "RSI_PM_TAXPROP.CheckTaxPropForUfebsMesRSL", V_INTEGER, params );
+  if( retval )
+    var rs = execSQLselectPrm( "select t_ErrMes, NVL(t_ShortErrMes, CHR(1)) ShortErrMes from dpmmeschk_tmp "
+                                 " where t_PaymentID = :PaymentID ",
+                                 SQLParam("PaymentID", Payment.PaymentID) );
+    if(rs and rs.moveNext())
+      ErrMsg = rs.value("ShortErrMes");
+
+      Payment.Notes.DelNote( NOTEKIND_PAYM_TAXWARNING );
+      Payment.Notes.AddNote( NOTEKIND_PAYM_TAXWARNING, SubStr(StrSubst(rs.value("t_ErrMes"), "|", "\n"), 1, 1499));
+      if ( not IsOperationRunning() )
+        Payment.Notes.Save();
+      end;
+    end;
+
+  else
+    Payment.Notes.DelNote( NOTEKIND_PAYM_TAXWARNING );
+    if ( not IsOperationRunning() )
+      Payment.Notes.Save();
+    end;
+  end;
+```
+
+---
+
+## Пример 33: `Блок`
+
+**Источник:** `Mac/DEPOSITR/PrepareFNSPercentInfo.mac`
+**Тип:** `block`
+**Размер:** 10 строк
+
+```rsl
+        for (var i, 0, period - BEG_DATE_FNS)
+            var curPeriod = BEG_DATE_FNS + i;
+            var statusString = "";
+            var cmd = RsdCommand("BEGIN ? := rsu_rtlfns.CorrectFNSPercentInfo(?, ?, ?); END;");
+            cmd.addParam("retVal",    RSDBP_RETVAL, V_INTEGER);
+            cmd.addParam("period",    RSDBP_IN,     String(curPeriod));
+            cmd.addParam("beginDate", RSDBP_IN,     Date(1, 1, curPeriod));
+            cmd.addParam("endDate",   RSDBP_IN,     Date(31, 12, curPeriod));
+            cmd.NullConversion = true;
+            cmd.execute();
+```
+
+---
+
+## Пример 34: `Блок`
+
+**Источник:** `Mac/DLNG/IR/ir_inboundmsg.mac`
+**Тип:** `block`
+**Размер:** 10 строк
+
+```rsl
+  var params:TArray = TArray();
+  params[0] = SQLParam( "p_Date"    , {curdate} ); 
+  params[1] = SQLParam( "p_IR_OP_ID", ir_op.rec.ID ); 
+  params[2] = SQLParam( "p_op_Kind",  ir_op.rec.DocKind ); 
+  params[3] = SQLParam( "p_oper",     {oper} ); 
+  params[4] = SQLParam( "p_LogHeader",Header ); 
+//debugbreak;
+  var stat:integer = execStoredFunc( "RSP_REPOSITORY.GetIncomingSRS", V_INTEGER, params );
+/*
+  if( (not stat) )
+```
+
+---
+
+## Пример 35: `UpdateSfRepAcc`
+
+**Источник:** `Mac/Cb/sfopr.mac`
+**Тип:** `macro`
+**Размер:** 17 строк
+
+```rsl
+macro UpdateSfRepAcc(SfDefComRec, Comment)
+
+  var strQuery = "", cmd;  
+
+  strQuery = "UPDATE DSFREPACC_TMP SET T_COMMENT = ?, T_ERRORCODE = 1 WHERE T_BEGINDATE = ?  AND T_CONTRID = ? AND T_FEETYPE = ? AND T_COMISSNUMBER = ? AND (T_ERRORCODE IS NULL OR T_ERRORCODE = 0)";
+             
+  cmd = RsdCommand( strQuery );
+
+  cmd.addParam( "", RSDBP_IN, substr(Comment, 1, 256) );
+  cmd.addParam( "", RSDBP_IN, SfDefComRec.DatePeriodBegin );
+  cmd.addParam( "", RSDBP_IN, SfDefComRec.SfContrID       );
+  cmd.addParam( "", RSDBP_IN, SfDefComRec.FeeType         );
+  cmd.addParam( "", RSDBP_IN, SfDefComRec.CommNumber      );
+
+  cmd.execute();
+  
+end;
+```
+
+---
+
+## Пример 36: `ShowMenu`
+
+**Источник:** `Mac/Cb/bbbodoc.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+  macro ShowMenu( DebetCredit:integer ):integer
+    return ConfWin( IfThenElse( DebetCredit == PRT_Debet, 
+                                makeArray( "Ошибка в распределении суммы по дебету. Сохранить?"  ),
+                                makeArray( "Ошибка в распределении суммы по кредиту. Сохранить?" ) ),
+                    makeArray( " Да", " Нет" )
+                  );
+  end;
+```
+
+---
+
+## Пример 37: `InsKvit`
+
+**Источник:** `Mac/DLNG/DV/dvautokvit.mac`
+**Тип:** `macro`
+**Размер:** 18 строк
+
+```rsl
+MACRO InsKvit(DealID, PlanPaymID, FactPaymID, KvitAmount, DocKind, Auto, Stat)
+    var v_Stat = 0;
+    if(Stat != null)
+       v_Stat = Stat;
+    end;
+
+    VAR ins = RSDCommand("INSERT INTO ddv_kvit_tmp (t_dealid, t_planpaymid, t_factpaymid, t_kvitamount, t_dockind, t_auto, t_stat) VALUES (?,?,?,?,?,?,?)");
+    ins.addParam("", RSDBP_IN, DealID);
+    ins.addParam("", RSDBP_IN, PlanPaymID);
+    ins.addParam("", RSDBP_IN, FactPaymID);
+    ins.addParam("", RSDBP_IN, KvitAmount);
+    ins.addParam("", RSDBP_IN, DocKind);
+    ins.addParam("", RSDBP_IN, Auto);
+    ins.addParam("", RSDBP_IN, v_Stat);
+    ins.execute();
+
+    //PRINTLN("DealID: " + DealID + "; PlanPaymID: " + PlanPaymID + "; FactPaymID: " + FactPaymID + "; KvitAmount: " + KvitAmount + "; Auto: " + Auto);
+END;
+```
+
+---
+
+## Пример 38: `GetAccountClaimListForAnaliticAcc`
+
+**Источник:** `Mac/Cb/claim_utils.mac`
+**Тип:** `macro`
+**Размер:** 48 строк
+
+```rsl
+macro GetAccountClaimListForAnaliticAcc( v               : @TArray  // результирующий массив
+                                        ,Account         : String  // - номер лицевого (сводного) счета 
+                                        ,Chapter         : Integer //- глава лицевого (сводного) счета 
+                                        ,Currency        : Integer  //- идентификатор финансового инструмента лицевого (сводного) счета 
+                                        ,AnaliticAccount : Integer  // ID аналитическоко счета из прикладного кода
+                                        ,BankDate        : Date     //  дата, за которую запрошены данные. 
+                                       ) : integer
+   if( ValType(BankDate) != V_DATE ) BankDate = {curdate}; end;
+
+   var q = "SELECT cl.t_ClaimID                           "+
+           "  FROM daccount_dbt ac, dacclaim_dbt cl       "+
+           "       INNER JOIN dacclaimstate_dbt st        "+
+           "               ON cl.t_ClaimID = st.t_ClaimID "+
+           " WHERE ac.t_Chapter = ? AND ac.t_Account = ? AND ac.t_Code_Currency = ? "+
+           "   AND cl.t_AccountID = ac.t_AccountID AND cl.t_AnaliticAccount = ? "+
+           "   AND st.t_State IN( :ACCLAIM_STATUS_ACTIVE, :ACCLAIM_STATUS_MODIFIED, :ACCLAIM_STATUS_STOPED) "+
+           "   AND st.t_StateDate=                        "+
+           "      (SELECT max(t.t_StateDate) FROM dacclaimstate_dbt t        "+
+           "        WHERE t.t_ClaimID = cl.t_ClaimID AND t.t_StateDate <= ?) "+
+           " GROUP BY cl.t_ClaimID                        ";
+
+  var params = makeArray( SQLParam( "", Chapter  ),
+                          SQLParam( "", Account  ),
+                          SQLParam( "", Currency ),
+                          SQLParam( "", AnaliticAccount ),
+                          SQLParam( "ACCLAIM_STATUS_ACTIVE",   1 ),
+                          SQLParam( "ACCLAIM_STATUS_MODIFIED", 2 ),
+                          SQLParam( "ACCLAIM_STATUS_STOPED",   3 ),
+                          SQLParam( "", BankDate ));
+
+  var rs = execSQLselect( q, params, FALSE );
+
+  var stat=0;
+
+  v = TArray();
+  while(rs.moveNext())
+     acclaim.rec.ClaimID =  rs.value(0);
+     if(acclaim.GetEQ)
+        v[v.size]              = CCLAIMLIST_ANALITICA();
+        v[v.size-1].acclaim_buf=TRecHandler("acclaim.dbt");
+        copy(v[v.size-1].acclaim_buf, acclaim);
+        v[v.size-1].v_acclaimstate = TArray();
+        stat = set_array_acclaimstate( acclaim.rec.ClaimID, @(v[v.size-1].v_acclaimstate));
+     else
+        stat=1;
+        break;
+     end;
+  end;
+```
+
+---
+
+## Пример 39: `InsertDAVRREST`
+
+**Источник:** `Mac/DLNG/SECUR/Convert/2728_OutAccData.mac`
+**Тип:** `macro`
+**Размер:** 30 строк
+
+```rsl
+  macro InsertDAVRREST( Department, FIID, BuyGoal, Portfolio, Amount, BalAcc, BalAccRest, OutAcc, OutAccRest, NKDAcc, NKDAccRest, Cost )
+    var cmd, i = 0;
+
+     cmd = RsdCommand( "insert into davrrest_buf ( t_Department, t_FIID, t_BuyGoal, t_Portfolio, t_Amount, t_BalAcc, t_Balance, t_OutAcc, t_Outlay, t_NKDAcc, t_NKD, t_Cost ) " +
+                       "                  values ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ) " );
+     cmd.NullConversion = true;
+
+     cmd.addParam( "", RSDBP_IN, Department );
+     cmd.addParam( "", RSDBP_IN, FIID );
+     cmd.addParam( "", RSDBP_IN, BuyGoal );
+     cmd.addParam( "", RSDBP_IN, Portfolio );
+     cmd.addParam( "", RSDBP_IN, Amount );
+     cmd.addParam( "", RSDBP_IN, BalAcc );
+     cmd.addParam( "", RSDBP_IN, BalAccRest );
+     cmd.addParam( "", RSDBP_IN, OutAcc );
+     cmd.addParam( "", RSDBP_IN, OutAccRest );
+     cmd.addParam( "", RSDBP_IN, NKDAcc );
+     cmd.addParam( "", RSDBP_IN, NKDAccRest );
+     cmd.addParam( "", RSDBP_IN, Cost );
+
+     cmd.execute();
+
+
+     Message( "Выгружен счет: " + BalAcc + " остаток: " + string(BalAccRest) + "\nОстаток стоимости покупки: " + string(Cost) );
+          
+     OnError(err);
+
+     Message( "!!! Ошибка при сохранении счета: " + BalAcc + " остаток: " + string(BalAccRest) );
+
+  end;
+```
+
+---
+
+## Пример 40: `CalculateBaseSum_DC`
+
+**Источник:** `Mac/DLNG/SECUR/SCPeriodComm.mac`
+**Тип:** `macro`
+**Размер:** 139 строк
+
+```rsl
+  MACRO CalculateBaseSum_DC( BeginDate:DATE, EndDate:DATE ):BOOL
+     VAR cmd, rs, ClientID, DateCond = "", query_com = "", query_total = "", ЗаданМоментРасчета = false;
+
+     if( (EndDate == NULL) OR (EndDate == DATE(0,0,0)) )
+        EndDate = BeginDate;
+     end;
+
+     if( this.МоментРасчета_2( COMM_IN_COMPAYDATE ) )
+        DateCond = " AND tick.t_CommDate = ? ";
+        ЗаданМоментРасчета = true;
+     elif( this.МоментРасчета_2( COMM_IN_DELIVERYDATE ) )/*"дата поставки"*/
+        DateCond = " AND RQ_avr.t_PlanDate = ? ";
+        ЗаданМоментРасчета = true;
+     elif( this.МоментРасчета_2( COMM_IN_PAYDATE ) )/*"дата оплаты"*/
+        DateCond = " AND RQ_cur.t_PlanDate = ? ";
+        ЗаданМоментРасчета = true;
+     end;
+
+     /*общая часть для 1 и 2 часте сделок*/
+     query_com = "SELECT Leg.t_ID LegID, Leg.t_LegKind, tick.t_ClientID, tick.t_BrokerID, tick.t_PartyID, tick.t_IsPartyClient, "+
+                 "       Leg.t_Registrar, Leg.t_RegistrarContrID, leg.t_PayRegTax, "+
+                 "             Leg.t_RejectDate, "
+                 "       RQ_cur.t_Amount BaseSum, RQ_cur.t_FIID BaseSumFIID "+
+                 "  FROM ddl_tick_dbt tick, ddl_leg_dbt Leg, DDLRQ_DBT RQ_avr, ddlrq_dbt RQ_cur "+
+                 " WHERE     tick.t_BofficeKind = ? " +/*пока только по сделкам (уточнила, что паи , погашения не нужны)*/
+                 "       AND tick.t_DealStatus  != ? " +
+                 "       AND tick.t_DealDate    >= ? " +
+                 "       AND Leg.t_DealID       = tick.t_DealID " +
+                 "       AND Leg.t_LegKind      = ? "+
+                 "       AND Leg.t_LegID        = 0 " +
+                 "       AND RQ_cur.t_DocKind   = tick.t_BofficeKind " +
+                 "       AND RQ_cur.t_DOCID     = tick.t_DealID " +
+                 "       AND RQ_cur.t_DEALPART  = ? " + 
+                 "       AND RQ_cur.t_Type      = "+DLRQ_TYPE_PAYMENT+ 
+                 "       AND RQ_cur.t_SUBKIND   = " +DLRQ_SUBKIND_CURRENCY+
+                 "       AND RQ_avr.t_DocKind   = tick.t_BofficeKind " +
+                 "       AND RQ_avr.t_DOCID     = tick.t_DealID " +
+                 "       AND RQ_avr.t_DEALPART  = RQ_cur.t_DEALPART " + 
+                 "       AND RQ_avr.t_Type      = "+DLRQ_TYPE_DELIVERY+ 
+                 "       AND RQ_avr.t_SUBKIND   = " +DLRQ_SUBKIND_AVOIRISS+
+                 "       AND ( RSB_SECUR.GetSfContrID(tick.t_DealID) = ? or "+/*основной договор по сделке(НБ с биржей\брокером\посредником или Клиента с НБ)*/
+                 "             (tick.t_ClientID <= 0 and (Leg.t_RegistrarContrID = ? and Leg.t_PayRegTax = 'X')) or "+/*регистратору по 1 или 2 ч*/
+                 "             RSB_SECUR.GetSfContrID(tick.t_DealID,tick.t_PartyID) = ? "+/*с клиентом-контрагентом*/
+                 "                ) "+
+                 "       and ( tick.t_ClientID > 0 or " +
+                 "             NVL((SELECT count(1) " +
+                 "                    FROM dpmwrtsum_dbt s"+
+                 "                        WHERE s.t_DocKind   = ? "+
+                 "                     AND s.t_DocID     = RQ_avr.t_ID "+
+                 "                     AND s.t_DealID    = RQ_avr.t_DOCID "+
+                 "                     AND s.t_DealID    = tick.t_DealID "+
+                 "                     AND s.t_State != ?),0) = 0 "+/*проверили, что лот 1 или 2ч НБ или Клиента не существует или не поставлен*/
+                 "           ) " +DateCond;
+
+     if(GlobalDealIDForCalc > 0)
+       query_com = query_com + " and tick.t_DealID = ? ";
+     end;
+
+     query_total = query_com +
+                   " union all "+
+                   query_com +
+                   " AND leg.t_PayRegTax = 'X' "+
+                   " AND leg.t_RegistrarContrID > 0 ";
+        
+     cmd = DL_RSDCommand();                                                                                              
+
+     cmd.addParam(DL_SECURITYDOC);
+     cmd.addParam(DL_CLOSED);     
+     cmd.addParam(BeginDate);
+     cmd.addParam(LEG_KIND_DL_TICK);/*1ч*/
+     cmd.addParam(1);/*1ч*/
+     cmd.addParam(this.rContr.rec.ID ); 
+     cmd.addParam(this.rContr.rec.ID ); 
+     cmd.addParam(this.rContr.rec.ID ); 
+
+     cmd.addParam(DLDOC_PAYMENT ); 
+     cmd.addParam(PM_WRTSUM_NOTFORM );
+        
+     if( ЗаданМоментРасчета )
+        cmd.addParam(EndDate );        
+     end;
+
+     if(GlobalDealIDForCalc > 0)
+       cmd.addParam(GlobalDealIDForCalc);
+     end;
+
+     cmd.addParam(DL_SECURITYDOC);
+     cmd.addParam(DL_CLOSED);     
+     cmd.addParam(BeginDate);
+     cmd.addParam(LEG_KIND_DL_TICK_BACK);/*2ч*/
+     cmd.addParam(2);/*2ч*/
+     cmd.addParam(this.rContr.rec.ID ); 
+     cmd.addParam(this.rContr.rec.ID ); 
+     cmd.addParam(this.rContr.rec.ID ); 
+
+     cmd.addParam(DLDOC_PAYMENT ); 
+     cmd.addParam(PM_WRTSUM_NOTFORM );
+        
+     if( ЗаданМоментРасчета )
+        cmd.addParam(EndDate );        
+     end;
+
+     if(GlobalDealIDForCalc > 0)
+       cmd.addParam(GlobalDealIDForCalc);
+     end;
+
+     rs = cmd.execute(query_total);
+
+     while( rs.MoveNext() )
+        if( (this.rComiss.rec.Code == ВТБДепо) and (rs.PayRegTax == SET_CHAR) )
+
+          if( ((rs.ClientID <= 0) and (this.rComiss.rec.ReceiverID == rs.Registrar) and (this.rContr.rec.ID == rs.RegistrarContrID)) OR 
+              ( (rs.ClientID > 0) and 
+                ((this.rComiss.rec.ReceiverID == rs.Registrar) and (rs.RegistrarContrID > 0))
+            )
+            )
+             /*сохраняем по части сделки (1 или 2)*/
+             if( InsertBaseSum( rs.LegKind, rs.LegID, rs.BaseSum, rs.BaseSumFIID ) != true )
+                return false;
+             end;
+          end;
+        elif((rs.LegKind == LEG_KIND_DL_TICK) and/*только по 1 ч сделки*/
+             ( (this.rComiss.rec.Code == БрокерНов) and (GetPartyContrCode( rs.BrokerID ) == BROKER_CODE) and (this.rComiss.rec.ReceiverID == rs.BrokerID) and
+              ( ((rs.ClientID > 0) and (this.rContr.rec.ContractorID == {OurBank}))/*для клиенской*/ or ( (rs.ClientID <= 0) and (this.rComiss.rec.ReceiverID == this.rContr.rec.ContractorID) )/*для своих сделок*/)
+            )
+            )
+           /*сохраняем 1 часть сделки (по комиссии НЕ регистратору всегда по 1 части)*/
+           if( InsertBaseSum( rs.LegKind, rs.LegID, rs.BaseSum, rs.BaseSumFIID ) != true )
+              return false;
+           end;
+        else
+           if( InsertBaseSum( rs.LegKind, rs.LegID, rs.BaseSum, rs.BaseSumFIID ) != true )
+              return false;
+           end;
+        end;
+     end;
+
+     return true;
+  END;
+```
+
+---

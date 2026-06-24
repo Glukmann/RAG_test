@@ -747,3 +747,865 @@ macro fill_BankInfo( Fncash : integer, isNationalCur : bool, item:TIncrementDeta
 
 ---
 
+## Пример 16: `PrintLog`
+
+**Источник:** `Mac/DLNG/DV/dvfcsapr.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro PrintLog()
+  var count = 0;
+   if( ErrorsReportLog )
+      Rep.AddNewSheetBreak("Протокол", TableErrors);
+      ReportData.ReportIsEmpty = false;
+      while( count < ErrorStr )
+
+         Rep.AddPrintCell( Errors[count] , 0, 0, "l");
+         Rep.AddStr();
+
+         count = count + 1;
+      end;
+   end;
+end;
+```
+
+---
+
+## Пример 17: `CBINF_Proc`
+
+**Источник:** `Mac/Cb/cbinfpln.mac`
+**Тип:** `macro`
+**Размер:** 102 строк
+
+```rsl
+macro CBINF_Proc( RegPath, OutType )
+
+    file indexv( indexv ) key 0;
+    file indexc( indexc ) key 0;
+
+    var this_stat, nmbRec = 0;
+
+    CBINF_Result = 0;
+    CBINF_ErrorStatus = 0;
+
+    if( OutType == CBINF_OutReport )
+        if( PrintHeader( RegPath, LIST_PLANNED ) )
+            return CBINF_StatusError;
+        end;
+    end;
+
+
+    rewind ( indexv );
+    
+	InitProgress( NRecords(indexv) * 2, "Информирование о необработанных документах", "Планируемые" );
+	
+    while( next( indexv ) )
+
+	    nmbRec = nmbRec + 1;
+	    UseProgress( nmbRec );
+
+        if( ( indexv.date_carry <= {curdate} ) and ( CBINF_OperDocFit( indexv.Oper ) == 0 ) )
+        
+            if( OutType == CBINF_OutMsg )
+            
+                this_stat = MsgDocFound( RegPath, CBINF_Planned, indexv );
+                if( this_stat )
+ 	                RemProgress( nmbRec );
+                   return this_stat;
+                end;
+                
+            elif( OutType == CBINF_OutReport )
+                this_stat = PrintLine( RegPath, CBINF_Planned, indexv );
+                if( this_stat )
+ 	                RemProgress( nmbRec );
+                   return this_stat;
+                end;
+                
+            end;/*OutType*/
+            
+        end;/*if CBINF_OperDocFit*/
+        
+    end;/*while*/
+
+
+    while( next( indexc ) )
+
+	    nmbRec = nmbRec + 1;
+	    UseProgress( nmbRec );
+
+        if( ( indexc.date_carry <= {curdate} ) and ( CBINF_OperDocFit( indexc.Oper ) == 0 ) )
+        
+            if( OutType == CBINF_OutMsg )
+            
+                this_stat = MsgDocFound( RegPath, CBINF_Planned, indexc );
+                if( this_stat )
+ 	                RemProgress( nmbRec );
+                   return this_stat;
+                end;
+                
+            elif( OutType == CBINF_OutReport )
+                this_stat = PrintLine( RegPath, CBINF_Planned, indexc );
+                if( this_stat )
+	                RemProgress( nmbRec );
+                    return this_stat;
+                end;
+                
+            end;/*OutType*/
+            
+        end;/*if CBINF_OperDocFit*/
+        
+    end;/*while*/
+
+    RemProgress( nmbRec );
+
+    if( OutType == CBINF_OutReport )
+        if( PrintFooter( RegPath, LIST_PLANNED ) )
+            return CBINF_StatusError;
+        end;
+    end;
+
+    return CBINF_StatusOk;
+
+    
+end;/*CBINF_Proc*/
+
+/*test call
+const REGPATH = "COMMON\\CBINFPARMS";
+var ret;
+
+ret = CBINF_Proc( REGPATH, CBINF_OutReport);
+
+msgbox( "test : stat =  ", ret , " CBINF_Result = ", CBINF_Result );
+*/
+```
+
+---
+
+## Пример 18: `makeBookpass`
+
+**Источник:** `Mac/DLNG/VA/vax110.mac`
+**Тип:** `macro`
+**Размер:** 26 строк
+
+```rsl
+  MACRO makeBookpass(fd)
+    var 
+       i = 0, stat = 0, Purpose, СчетДебет, СчетКредит;
+
+    Purpose = String("Постановка сделки на балансовый учет");
+
+    while((stat == 0) AND (i < ArrGrp.size))
+
+      if(not VA_GetAccount("+Форвард, расчеты", fd, СчетДебет, MC_OPENACC_CREATE, ArrGrp[i].FIID, FIROLE_FIREQ, null, StepDate))
+         stat = 1;
+      elif(not VA_GetAccount("-Форвард, расчеты", fd, СчетКредит, MC_OPENACC_CREATE, ArrGrp[i].FIID, FIROLE_FICOM, null, StepDate))
+         stat = 1;
+      else
+         stat = VA_Bookpass(СчетДебет, 
+                        СчетКредит, 
+                        ArrGrp[i].amount,
+                        Purpose,
+                        0, 0,               /* Платеж */
+                        ArrGrp[i].FIID,
+                        null, null, StepDate
+                       );
+      end;
+      i = i + 1;
+    end;
+    return stat;
+  END;
+```
+
+---
+
+## Пример 19: `DefineIndent`
+
+**Источник:** `Mac/Cb/sgn_opr.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro DefineIndent( LevelIndent )
+  var i, FullIndent;
+  FullIndent = "";
+  i = 0;
+  while( i < LevelIndent )
+    FullIndent = FullIndent + Indent;
+    i = i + 1;
+  end;
+```
+
+---
+
+## Пример 20: `GetLine`
+
+**Источник:** `Mac/Cb/lib_rep.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+  macro GetLine( nLine )
+    var i, Indent;
+    if( nLine < SplitContent.Size() )
+      Indent = ""; i = 0;
+      while( i < LeftIndentSize )
+        Indent = Indent + " ";
+        i = i + 1;
+      end;
+      return Indent + SplitContent(nLine);
+    end;
+    return "";
+  end;
+```
+
+---
+
+## Пример 21: `ОбработатьСообщения`
+
+**Источник:** `Mac/Mbr/swin503.mac`
+**Тип:** `macro`
+**Размер:** 51 строк
+
+```rsl
+macro ОбработатьСообщения( node )
+  /* Инициализация*/
+  var i = 0;
+  var child:object;
+
+  var Документов = 0;
+  while( i < node.childNodes.length )
+    child = node.childNodes.item(i);
+    if( child and (child.nodeType==CHILD_NODE) and (GetNodeName(child.NodeName) == "SWIFTContainer") )
+      if (not DecodeBase64(StrSubst(StrSubst(ReadNodeText(child, "SWIFTDocument"), "\n", ""), "\r", ""), CurrentMessage))
+        ErrImport( "Ошибка при декодировании SWIFTDocument" );
+        return IMPORT_MACRO_ERROR;
+      end;
+      CurrentMPosition = 1;
+      CurrentMLine = 1;
+      var КодНачалаБлокаПрочитан, СчитанныйКодНачалаБлока, Отправитель, Получатель, ДатаОтправки;
+
+      /* Считываем заголовок файла */
+      if( not СчитатьЗаголовок( Отправитель, Получатель, ДатаОтправки ) )
+        return IMPORT_MACRO_ERROR;
+      end;
+      var continue0 = TRUE;
+      var stat = 0;
+      while( continue0 )
+        stat = ОбработатьСообщение( КодНачалаБлокаПрочитан, СчитанныйКодНачалаБлока, Отправитель, Получатель, ДатаОтправки );
+        if( stat == 1 )
+          continue0 = FALSE;
+        elif( stat == 3 ) /* найден конец файла */
+          continue0 = FALSE;
+        elif( stat == -1 )
+          return IMPORT_MACRO_ERROR;
+        elif( stat == 0 )
+          stat = СчитатьРазделительСообщений(КодНачалаБлокаПрочитан, СчитанныйКодНачалаБлока);
+          if( stat == 1 )
+            continue0 = FALSE;
+          elif( stat == -1 )
+            return IMPORT_MACRO_ERROR;
+          end;
+        end;
+
+        Документов = Документов + 1;
+        message("Идет прием сообщений. Обработано: ", Документов );
+      end;
+
+      /* Считываем код конца файла */
+      if( not СчитатьКонцовку() )
+         return IMPORT_MACRO_ERROR;
+      end;
+    end;
+    i=i+1;
+  end;
+```
+
+---
+
+## Пример 22: `PrintDocument`
+
+**Источник:** `Mac/Cb/mld2161u.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+MACRO PrintDocument(ncopy: integer):bool
+  debugbreak;
+  CopyCont = ncopy;
+  while(CopyCont)
+    СформироватьОтчетДляМультивалютногоМО( pr_multydoc, 0 );
+    CopyCont = CopyCont - 1;
+  end;
+```
+
+---
+
+## Пример 23: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/TRUST/tscalc030.mac`
+**Тип:** `macro`
+**Размер:** 10 строк
+
+```rsl
+macro ExecuteStep( doc, FDoc, DocKind, _OperationID, ID_Step )
+
+  Oper.SetRecordAddr( FDoc );
+  FD = TS_CalcORCB_FD( Oper );
+
+  while( FD.MoveNextOrder() )
+     if( ПеревестиСредства( FD.OrderFD.ID, doc ) == false )
+        return 1;
+     end;
+  end;
+```
+
+---
+
+## Пример 24: `GetPaymSum`
+
+**Источник:** `Mac/DLNG/dldlngfun.mac`
+**Тип:** `macro`
+**Размер:** 11 строк
+
+```rsl
+  MACRO GetPaymSum(id) /* возвращает платеж */
+     var i = 0;
+     while(i < Payms.size)
+        if(id == Payms(i).PaymID)
+           return Payms(i).PaymSum;
+        end;
+        i = i + 1;
+     end;
+
+     return -1;
+  END;
+```
+
+---
+
+## Пример 25: `VA_Rep_InitProgress`
+
+**Источник:** `Mac/DLNG/VA/vamisc.mac`
+**Тип:** `macro`
+**Размер:** 6 строк
+
+```rsl
+MACRO VA_Rep_InitProgress(n, head, stat)
+    VA_ByDefault(stat, "~Ctrl-Break~ Прервать");
+    VA_ByDefault(head, "Формирование отчета");
+
+    InitProgress(n, stat, head);
+END;
+```
+
+---
+
+## Пример 26: `merge`
+
+**Источник:** `Mac/DEPOSITR/vector.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+  macro merge( a )
+    var i = 0;
+    var vsize = prvtASize(a);
+    while( i < vsize )
+      push_back( a(i) );
+      i = i + 1;
+    end;
+  end;
+```
+
+---
+
+## Пример 27: `RestInList`
+
+**Источник:** `Mac/DEPOSITR/secrest1.mac`
+**Тип:** `macro`
+**Размер:** 10 строк
+
+```rsl
+macro RestInList (TestRest)
+  var i = 1,
+      stat = false;
+  while ((NOT stat)
+     AND (i < 21))
+    if (TestRest == Rest(i))
+      stat = true;
+    end;
+    i = i + 1;
+  end;
+```
+
+---
+
+## Пример 28: `makeBookpass`
+
+**Источник:** `Mac/DLNG/VA/var060.mac`
+**Тип:** `macro`
+**Размер:** 38 строк
+
+```rsl
+  MACRO makeBookpass(tick, Purpose)
+    var
+       i = 0, stat = 0, SumDbt = 0, fd, ВалДеб, ВалКред,
+       СчетДоход, СчетРасход;
+
+    while((stat == 0) AND (i < ArrGrp.size))
+      if(IsEnrol)
+        ВалДеб = ВалРасчетов;
+        ВалКред = ArrGrp[i].fiid;
+      else
+        ВалДеб = NATCUR;
+        ВалКред = ArrGrp[i].fiid;
+      end;
+
+      if(ВалДеб == ВалКред)
+         /* одновалютная проводка */
+         stat = VA_Bookpass(ArrGrp[i].AccDbt, ArrGrp[i].acc, ArrGrp[i].amount, Purpose,
+                        0, 0,               /* Платеж */
+                        ВалДеб,
+                        null, null, StepDate
+                       );
+      else
+         /* многовалютная проводка */
+         SumDbt = ArrGrp[i].payamount;//VA_Convert(ArrGrp[i].amount, StepDate, ArrGrp[i].fiid, ВалДеб);
+         if(not VA_MBookpass(0,
+                          ВалДеб, ArrGrp[i].AccDbt, SumDbt,
+                          ВалКред, ArrGrp[i].acc, ArrGrp[i].amount,
+                          Purpose,
+                          null, null,
+                          null, StepDate))
+            stat = VA_Err("Ошибка при выполнении проводки",
+                          "|", Purpose);
+         end;
+      end;
+      i = i + 1;
+    end;
+    return stat;
+  END;
+```
+
+---
+
+## Пример 29: `ArrFind`
+
+**Источник:** `Mac/Cb/lib_arr.mac`
+**Тип:** `macro`
+**Размер:** 16 строк
+
+```rsl
+MACRO ArrFind( arr, val, IsEqual:variant)
+    var i = 0;
+    while( i < arr.size )
+        if(ValType(IsEqual) != V_UNDEF)
+          if(ExecMacro2(IsEqual, arr[i], val))
+            return i;
+          end;
+        else
+          if( arr[i] == val )
+            return i;
+          end;
+        end;
+        i = i + 1;
+    end;
+    return -1;
+END;
+```
+
+---
+
+## Пример 30: `Блок`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsordfd.mac`
+**Тип:** `block`
+**Размер:** 14 строк
+
+```rsl
+    MACRO GetBasisFIRole(FIRole)
+      var i = 0;
+      if (FIRole == FIROLE_UNDEF)
+        return FIROLE_FIDOC;
+      end;
+      while (i < FIRoleBArray.Size)
+        if (FIRoleBArray[i] == FIRole)
+          return FIRole;
+        end;
+        i = i + 1;
+      end;
+      Error = 1;
+      return FIROLE_UNDEF;
+    END;
+```
+
+---
+
+## Пример 31: `SortingOnDecrease`
+
+**Источник:** `Mac/Invh/Fun_lvm.mac`
+**Тип:** `macro`
+**Размер:** 19 строк
+
+```rsl
+MACRO SortingOnDecrease(Arr)
+var  flag = 1, tmp, i,j;
+var  arrSize = Asize(Arr);
+
+  i = 1;
+  while(flag and (i < arrSize) )
+    flag = 0;
+    j    = arrSize - 1;
+    while(j >= i)
+      if( Arr(j-1) < Arr(j) )
+         tmp      = Arr(j-1);
+         Arr(j-1) = Arr(j);
+         Arr(j)   = tmp;
+         flag = 1;
+      end;
+      j = j - 1;
+    end;
+    i = i + 1;
+  end;
+```
+
+---
+
+## Пример 32: `GetFieldNum`
+
+**Источник:** `Mac/DLNG/DEPO/spinfrep.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+  macro GetFieldNum(field)
+    var i = 0;
+    
+    while((i < PanFieldNums.size()) AND (ValType(PanFieldNums[i]) != V_UNDEF))
+      if(PanFieldNums[i] == field)
+        return i;
+      end;
+      i = i + 1;
+    end;
+
+    return -1;
+  end;
+```
+
+---
+
+## Пример 33: `NeedImportRate`
+
+**Источник:** `Mac/imp_rate.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+MACRO NeedImportRate( code )
+
+ var i = 0;
+ const n = СписокВалют.size;
+
+ while( i < n )
+  if( СписокВалют(i) == code )
+   return TRUE;
+  end;
+```
+
+---
+
+## Пример 34: `makeBookpass`
+
+**Источник:** `Mac/DLNG/VA/vaw120.mac`
+**Тип:** `macro`
+**Размер:** 40 строк
+
+```rsl
+  MACRO makeBookpass()
+    var СчетДоход, СчетРасход, sum_dbt, i = 0, stat = 0, at = VA_AccTrans();
+
+    while((stat == 0) AND (i < ArrGrpDisc.size))
+      stat = VA_Bookpass(ArrGrpDisc[i].dbt,
+                     ArrGrpDisc[i].crd,
+                     ArrGrpDisc[i].amount,
+                     String("Начисление дисконта по векселю"),
+                     0, 0,               /* Платеж */
+                     ArrGrpDisc[i].AccFI,
+                     null, null, StepDate,
+                     null, null, null, null,
+                     "18");
+      i = i + 1;
+    end;
+    i = 0;
+
+    at.date_carry   = StepDate;
+    at.CatPayer     = "ВнебалСчетКорресп";
+    at.CatReceiver  = "Разн.ценности и документы";
+    at.FIIDPayer    = NATCUR;
+    at.FiRolePayer  = FIROLE_CORACC_ACTIVE;
+    at.Ground       = String("Выдача векселя контрагенту");
+    at.Chapter      = 3;
+    while((stat == 0) AND (i < ArrGrp.size))
+        at.FDPayer      = ArrGrp[i].fd;
+        at.FDReceiver   = ArrGrp[i].fd;
+        at.PrimaryDoc   = ArrGrp[i].fd;
+        at.FIIDReceiver = NATCUR;
+        at.SumReceiver  = ArrGrp[i].amount;
+
+        if (not at.carry())
+            stat = VA_Err("Ошибка при выполнении",
+                          "|проводки по выдаче векселя",
+                          "|контрагенту");
+        end;
+      i = i + 1;
+    end;
+    return stat;
+  END;
+```
+
+---
+
+## Пример 35: `FormatRate`
+
+**Источник:** `Mac/Mbr/swgm399.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro FormatRate(Rate)
+  var retRate = Rate.asDouble, i;
+
+  i = 0;
+  while(i < Rate.Point)
+    retRate = retRate/10;
+    i = i+1;
+  end;
+```
+
+---
+
+## Пример 36: `GetErrorString`
+
+**Источник:** `Mac/DLNG/dlquery.mac`
+**Тип:** `macro`
+**Размер:** 11 строк
+
+```rsl
+  macro GetErrorString(e)
+    var strErr = e.message;
+    var i = 0;
+
+    while( i < m_Select.connection.environment.ErrorCount )
+      strErr = strErr + m_Select.connection.environment.Error(i).Descr;
+      i = i + 1;
+    end;
+
+    return strErr;
+  end;
+```
+
+---
+
+## Пример 37: `PrintLog`
+
+**Источник:** `Mac/DLNG/DV/dvoposrp.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+macro PrintLog()
+  var count = 0;
+   if( ErrorsReportLog )
+      Rep.AddNewSheetBreak("Ошибки", TableErrors);
+      while( count < ErrorStr )
+
+         Rep.AddPrintCell( Errors[count] , 0, 0, "l");
+         Rep.AddStr();
+
+         count = count + 1;
+      end;
+   end;
+end;
+```
+
+---
+
+## Пример 38: `ПроводкиОтнесенияНадежных`
+
+**Источник:** `Mac/DLNG/TRUST/trvaprdslib.mac`
+**Тип:** `macro`
+**Размер:** 100 строк
+
+```rsl
+  MACRO ПроводкиОтнесенияНадежных(ValueDate)
+    var i = 0;
+    var stat = 0;
+    var natsum = 0.0;
+    var Ground = "";
+    var bnrfd = null, fd = null;
+
+    //дисконт
+    while((not stat) and (i<parmOD.size))
+
+      natsum = parmOD[i].Summ;
+
+      if(parmOD[i].fiid != NATCUR)
+        if( (not TS_SmartConvertSum( natsum, parmOD[i].Summ, ValueDate, parmOD[i].fiid, NATCUR, true ) ) )
+          stat = 1;
+        end;
+      end;
+
+      fd = OrderFD;
+      Ground = "Отнесение начисленного ранее дисконтного дохода на доход ";
+      if(not GroupByIssuer)
+        if((fromTick == true) and (ValType(tickfd) != V_UNDEF))
+          bnrfd = TS_VABnrFD(DL_VSBANNER, parmOD[i].BCIDs[0], tickfd.tick.rec.BOfficeKind, tickfd.tick);
+        else
+          bnrfd = TS_VABnrFD(DL_VSBANNER, parmOD[i].BCIDs[0], NULL, NULL);
+        end;
+        Ground = Ground + bnrfd.CreateGroundByBnr("векселя (_IssuerName_, _BCSeries_, _BCNumber_)");
+        fd = bnrfd.ctgfd;
+      end;
+
+      if( not ПроводкаПоКатегориямУчетаПоДоговору(
+                 fd,
+                 NULL,
+                 NULL,
+                 parmOD[i].DebetAcc, parmOD[i].CreditAcc,
+                 ValueDate,
+                 parmOD[i].DebetAcc.rec.Chapter,
+                 parmOD[i].fiid,
+                 parmOD[i].Summ,
+                 null,
+                 OrderFD.Number,
+                 Ground,
+                 null, null,
+                 null, null,
+                 NATCUR, natsum
+                 )
+          )
+            stat = 1;
+      end;
+
+      i = i+1;
+    end;
+
+    //проценты
+    i=0;
+    while((not stat) and (i<parmOP.size))
+      natsum = parmOP[i].Summ;
+
+      if(parmOP[i].fiid != NATCUR)
+        if( (not TS_SmartConvertSum( natsum, parmOP[i].Summ, ValueDate, parmOP[i].fiid, NATCUR, true ) ) )
+          stat = 1;
+        end;
+      end;
+
+      fd = OrderFD;
+      Ground = "Отнесение начисленного ранее процентного дохода на доход ";
+      if(not GroupByIssuer)
+        if((fromTick == true) and (ValType(tickfd) != V_UNDEF))
+          bnrfd = TS_VABnrFD(DL_VSBANNER, parmOP[i].BCIDs[0], tickfd.tick.rec.BOfficeKind, tickfd.tick);
+        else
+          bnrfd = TS_VABnrFD(DL_VSBANNER, parmOP[i].BCIDs[0], NULL, NULL);
+        end;
+        Ground = Ground + bnrfd.CreateGroundByBnr("векселя (_IssuerName_, _BCSeries_, _BCNumber_)");
+        fd = bnrfd.ctgfd;
+      end;
+
+      if( not ПроводкаПоКатегориямУчетаПоДоговору(
+                 fd,
+                 NULL,
+                 NULL,
+                 parmOP[i].DebetAcc, parmOP[i].CreditAcc,
+                 ValueDate,
+                 parmOP[i].DebetAcc.rec.Chapter,
+                 parmOP[i].fiid,
+                 parmOP[i].Summ,
+                 null,
+                 OrderFD.Number,
+                 Ground,
+                 null, null,
+                 null, null,
+                 NATCUR, natsum
+                 )
+          )
+            stat = 1;
+      end;
+      i = i+1;
+    end;
+
+    return stat;
+  END;
+```
+
+---
+
+## Пример 39: `deleteNotDigit`
+
+**Источник:** `Mac/Cb/fmexreq_func.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro deleteNotDigit(s)
+    var ss = "";
+    var len = strlen(s);
+    var arr = TArray;
+    arr = StrSplit2(s, 1);
+    var i = 0;
+    while (i < len)
+        if ( (arr(i) >= "0") and (arr(i) <= "9"))
+            ss = ss + arr(i);
+        end;
+        i = i + 1;
+    end;
+    return ss;
+end;
+```
+
+---
+
+## Пример 40: `InsertHeadDocs_camt_052_053`
+
+**Источник:** `Mac/Mbr/swmx_camt_lib.mac`
+**Тип:** `macro`
+**Размер:** 33 строк
+
+```rsl
+macro InsertHeadDocs_camt_052_053
+( GrpHdrNode : XMLMesDocument, 
+  NtryNodes : TArray, 
+  wlhead, 
+  wlmes,
+  MainNodeCreDtTm : date,
+  TranslateID : string
+)
+
+  for( var NtryNode, NtryNodes ) // ReportEntry10
+    var TransferDate : date = DivideYYYY_MM_DDThhmmssZToDateTime(NtryNode.ReadOptionalNodeText("BookgDt/Dt"));
+    if(TransferDate == BNK_ZERODATE)
+      TransferDate = MainNodeCreDtTm;
+    end;
+
+    var NtryDtlsNodes = NtryNode.GetChildNodes("NtryDtls");
+
+    for( var NtryDtlsNode, NtryDtlsNodes )
+      var BtchNodes = NtryDtlsNode.GetChildNodes("Btch"); // BatchInformation2
+      for( var BtchNode, BtchNodes )
+        InsertWlconfByBtchNode_camt_052_053(GrpHdrNode, NtryNode, BtchNode, wlhead, wlmes, TransferDate, TranslateID);
+      end;
+
+      var TxDtlsNodes = NtryDtlsNode.GetChildNodes("TxDtls"); // EntryTransaction10
+      for( var TxDtlsNode, TxDtlsNodes )
+        InsertWlconfByTxDtlsNode_camt_052_053(GrpHdrNode, NtryNode, NtryDtlsNode, TxDtlsNode, wlhead, wlmes, TransferDate, TranslateID);
+      end;
+    end; // for NtryDtlsNode
+
+  end; // for NtryNode
+
+end; // macro InsertHeadDocs_camt_052_053
+```
+
+---

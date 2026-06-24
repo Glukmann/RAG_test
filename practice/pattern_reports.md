@@ -461,3 +461,756 @@ MACRO FldProc_NpTxPrintMethod( pThis:DL_CPanel, Cmd:INTEGER, Key:INTEGER, FldSho
 
 ---
 
+## Пример 16: `ImportParty`
+
+**Источник:** `Mac/DLNG/DEPO/importParty.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro ImportParty(impIssuer:bool, impLicense:bool, impDepositary:bool)
+  var impINN = null;
+  var impLIZ = null;
+  var impSDEP = null;
+  var report = CReportImportParty();
+  var statINN = -1, statLIZ = -1, statSDEP = -1;
+
+  if (impIssuer)
+    impINN = CImportINN(report);
+    if (not impINN.getPath())
+      msgbox("Ошибка при определении настройки DEPO\\INNCB_IMPORT. Справочник не загружается");
+      impINN = null;
+    end;
+  end;
+```
+
+---
+
+## Пример 17: `UnloadAccount`
+
+**Источник:** `Mac/DEPOSITR/tr_acc.mac`
+**Тип:** `macro`
+**Размер:** 16 строк
+
+```rsl
+macro UnloadAccount(Acc);
+  
+  PrintLn( "Выгрузка одного счета" );
+  PrintLn( "=====================\n" );
+
+  UpdateExistingStrategy = S_QUERY_USER;
+
+  UnloadAcc(Acc,True,FULL_UNLOAD,False);
+
+  PrintLn( "\n--------------------------------------------" );
+  Print( "Процедура завершилась " );
+  if ( ErrorsOccured > 0 )
+    PrintLn( "с ошибками" );
+  else
+    PrintLn( "успешно" );
+  end;
+```
+
+---
+
+## Пример 18: `PrintLogPmSend`
+
+**Источник:** `Mac/Cb/giszhkhproc_rep.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+macro PrintLogPmSend(Type)
+  BegAction (0, "Построение отчета о результатах передачи информации в RS-Connect");
+
+  var Table : TTable = TTable();
+
+  if( Type )
+    PrintHeader();
+    Table.Print();
+    Table.PrintQueries();
+  else
+    PrintHeaderCharges();
+    Table.PrintCharges();
+  end;
+```
+
+---
+
+## Пример 19: `PrintSWIFTMessageOutIn`
+
+**Источник:** `Mac/DLNG/SECUR/boswift.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+macro PrintSWIFTMessageOutIn(DraftID, DraftKind)
+  VAR ReportFileName, ProcName;
+  var Text = "";
+  ReportFileName = GetTxtFileName( "message");
+  SetOutput( ReportFileName );
+
+  Text = "Исходящее сообщение: \n\n";
+  Text = Text + GetMsgText(DraftID, "GetMsgText", DraftKind);
+  Text = Text + "\n\nВходящее сообщение: \n\n";
+  Text = Text + GetMsgText(DraftID, "GetConfirmText", DraftKind);
+  print(Text);
+
+  SetOutput( NULL, true );
+  ViewFile( ReportFileName );
+end;
+```
+
+---
+
+## Пример 20: `for_all_investors_report`
+
+**Источник:** `Mac/DLNG/SECUR/spasssal.mac`
+**Тип:** `macro`
+**Размер:** 43 строк
+
+```rsl
+macro for_all_investors_report( rep_date, num2check, num_start )
+     var  i = 0, j, head_printed = false;
+     var hor_line = MkStr("─",COLUMN_LEN), owner_id,
+         empty_line = mkstr(" ", COLUMN_LEN), acc_rest = $0;
+     InitProgress(investors.size, "Поиск остатков", "Просмотр счетов ДЕПО");
+     while ( i != num2check )
+          iss_totrests[i] = $0;
+          i = i + 1;
+     end;
+     i = 0;
+     while ( i < investors.size )
+              owner_id = investors[i];
+              fill_rests( owner_id, rep_date, num2check, num_start );
+              if ( ПолучитьСубъекта(owner_id,pt) != 0 )
+                   println("Не могу получить анкету владельца счета ", depoacc.Code);
+                   return;
+              end;
+                  acc_rest = inv_rests[i];
+                  if ( rest_exist( num2check ) or (acc_rest != $0) )
+                       if ( not head_printed )
+                            table_header( num2check, num_start );
+                            head_printed = true;
+                       end;
+                       print("├────────────────────┼──────────┼─────────────┼"); printline_end ( hor_line, num2check, "┼", "┤", -1 );
+                       print("│",pt.ShortName:20,"│",ПолучитьКодСубъекта(owner_id,codekind2show):10,"│",acc_rest:13,"│"); printline_end ( iss_rests, num2check, "│", "│", 0 );
+                       print("│",depoacc.Code:20,"│          │             │"); printline_end ( empty_line, num2check, "│", "│", -1 );
+                       j = 0;
+                       while ( j != num2check )
+                            iss_totrests[j] = iss_totrests[j] + iss_rests[j];
+                            j = j + 1;
+                       end;
+                  end;
+          i = i + 1;
+          UseProgress(i);
+     end;
+     RemProgress;
+     if ( head_printed )
+          print("└────────────────────┴──────────┴─────────────┴"); printline_end ( hor_line, num2check, "┴", "┘", -1 );
+          println("");
+          print("Итого по клиентам                ", tot_acc_rest:13, " "); printline_end ( iss_totrests, num2check, " ", "", 0 );
+          [];
+     end;
+end;
+```
+
+---
+
+## Пример 21: `decrease`
+
+**Источник:** `Mac/DLNG/SECUR/spdpord.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro decrease( name )
+[
+     Списать со счета депонента
+
+];
+     print( "    ", name:40:t );
+end;
+```
+
+---
+
+## Пример 22: `ExecQIValidPeriodReport`
+
+**Источник:** `Mac/DLNG/SECUR/ws_QIValidPeriod.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+MACRO ExecQIValidPeriodReport(MonitorDate)
+  var FullNames = TArray(), Report;
+  Report = QIValidPeriodReportXls(MonitorDate);
+  Report.Run();
+  FullNames = Report.GetFullReportFileNames(); 
+
+  return CreateFileContainer(FullNames[0]);
+END;
+```
+
+---
+
+## Пример 23: `OutGateRep`
+
+**Источник:** `Mac/CONV_FC/v_laros_fc_1.mac`
+**Тип:** `macro`
+**Размер:** 23 строк
+
+```rsl
+macro OutGateRep()
+    var SaveDate = NullDate;
+
+[+----------------------------------------------+
+ | Вид вклада     |    Приход    |   Расход     |
+ +----------------+--------------+--------------+];
+
+   keynum( report, 3 );
+   rewind( report    );
+
+   while( next( report ) )
+       if( SaveDate != report.Date )
+          SaveDate = report.Date;
+[       Обороты за ############ ]( SaveDate );
+[+--------------------------------------------+];
+       end;
+
+[|################|#############|###############|]
+( report.Kind, report.KredSum, report.DebSum );
+[+----------------+---------------+-----------+];
+   end;
+
+end;
+```
+
+---
+
+## Пример 24: `ПечататьОперация`
+
+**Источник:** `Mac/Cb/fm_opprn.mac`
+**Тип:** `macro`
+**Размер:** 23 строк
+
+```rsl
+macro ПечататьОперация(fmop)
+    if (fmop.OpType != FM_OP_TYPE_OTHER)
+        var Title = "";
+        var table = report.AddTable(1, 2);
+
+        if (not report.IsPoi)
+            table.table.BottomPadding = 0;
+        end;
+
+        if (fmop.OpType == FM_OP_TYPE_MONEY_TRANSFER) // перевод денежных средств
+            Title = "Сведения об операции по переводу денежных средств";
+            ПереводДенежныхСредств(table, fmop);
+        elif (fmop.OpType == FM_OP_TYPE_CASH_TRANSACTION) // операция с наличными
+            Title = "Сведения об операции с наличными денежными средствами";
+            ОперацияНаличными(table, fmop);
+        elif (fmop.OpType == FM_OP_TYPE_PAYMENT_CARD) // операция с платежной картой иностранного
+            Title = "Сведения об операции с использованием платежной карты иностранного банка";
+            ОперацияКартойИностранного(table, fmop);
+        end;
+
+        table.ApplyFirstRowAsHeader(Title);
+    end;
+end;
+```
+
+---
+
+## Пример 25: `UploadAccount`
+
+**Источник:** `Mac/DEPOSITR/tr_acc.mac`
+**Тип:** `macro`
+**Размер:** 16 строк
+
+```rsl
+macro UploadAccount(Acc);
+  
+  PrintLn( "Загрузка одного счета" );
+  PrintLn( "=====================\n" );
+
+  UpdateExistingStrategy = S_QUERY_USER;
+
+  UploadAcc(Acc,True,FULL_UPLOAD);
+
+  PrintLn( "\n--------------------------------------------" );
+  Print( "Процедура завершилась " );
+  if ( ErrorsOccured > 0 )
+    PrintLn( "с ошибками" );
+  else
+    PrintLn( "успешно" );
+  end;
+```
+
+---
+
+## Пример 26: `setFmExReqData`
+
+**Источник:** `Mac/Cb/fmexreq_db.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+macro setFmExReqData(exReqId, partyId, dateBegin, dateEnd, error:@string)
+    var report = TrnFmExReqData;
+    report.setFmExReqData(exReqId, partyId, dateBegin, dateEnd, @error);
+    return report.getResult();
+end;
+```
+
+---
+
+## Пример 27: `Report`
+
+**Источник:** `Mac/DEPOSITR/ingorder.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+macro Report( ApplicationKind, ApplicationKey )
+
+  var
+    BranchStrNum = "",
+    DepartNum = "",
+    DepartName = "";
+
+  GetBranchParams( NumFNCash, BranchStrNum, DepartNum, DepartName );
+
+  G_ApplicationKind = ApplicationKind;
+  G_ApplicationKey = ApplicationKey;
+
+  PrintList;
+
+end;
+```
+
+---
+
+## Пример 28: `PrintPayReqRSF`
+
+**Источник:** `Mac/Cb/prpmrqvi.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+MACRO PrintPayReqRSF(): bool
+
+  var PayerPr   :TPartyProperties = TPartyProperties("Payer",    pr_pmpaym, pr_debet,  pr_pmrmprop);
+  var ReceiverPr:TPartyProperties = TPartyProperties("Receiver", pr_pmpaym, pr_credit, pr_pmrmprop);
+
+  return PayOrder0401060Report( PayerPr, ReceiverPr ).Print();
+END;
+```
+
+---
+
+## Пример 29: `GenerateReport`
+
+**Источник:** `Mac/DLNG/dl_rep_Register_269_TC.mac`
+**Тип:** `macro`
+**Размер:** 71 строк
+
+```rsl
+  MACRO GenerateReport()
+    var LastNameFileTmp = "";
+
+      if (panel.run() == -316)
+          if (panel.isIP_IBC) InstLoadModule("mm_rep_Register_269_TC.mac"); end;
+
+          BegAction(0, "Формирование отчета");
+
+          Rep.OpenTemplate("Report_Register_269_TC.xls", false);
+
+          FillVariable();
+
+          IsExistsRepDataProfit = false;
+          IsExistsRepDataCost   = false;
+          ErrorMesage.ClearArray();
+
+          if (panel.isProfit)
+              SheetActivate("Доходы");
+              FillHeaderProfit();
+              if (panel.isIP_IBC) FillBodyProfitForIBC(); end;
+              if (panel.isIP_SEC) FillBodyProfitForSecur(); end;
+          end;
+
+          if (panel.isCost)
+              SheetActivate("Расходы");
+              FillHeaderCost();
+              if (panel.isIP_IBC) FillBodyCostForIBC(); end;
+              if (panel.isIP_SEC) FillBodyCostForSecur(); end;
+          end;
+
+          ErrorModulePrefix = "";
+
+          if (
+              (not IsExistsRepDataProfit) and
+              (not IsExistsRepDataCost)
+             )
+              ErrorLog("Нет данных для формирования отчета.");
+          end;
+
+          var SheetCount = 4;
+          if (not IsExistsRepDataProfit)
+              Rep.SheetDelete(1);
+              SheetCount = SheetCount - 1;
+          end;
+		  
+          if (not IsExistsRepDataCost)
+              Rep.SheetDelete(SheetCount - 2);
+              SheetCount = SheetCount - 1;
+          end;
+
+          if (ErrorMesage.size > 0)
+              FillErrLog();
+          else
+              Rep.SheetDelete(SheetCount - 1);
+          end;
+
+          SheetActivate(1);
+
+          EndAction();
+
+          if (panel.repFormat == 2)
+ 
+              LastNameFileTmp = SetOutPut(panel.repFilePath, true);
+              LastNameFileTmp = SetOutPut(LastNameFileTmp, true);
+              DelFile(panel.repFilePath);
+              Rep.SaveAs(panel.repFilePath, WINREP_OUTPUT_EXCEL);
+          else
+              Rep.SaveAsTemplate(NULL, true);
+          end;
+      end;
+  END;
+```
+
+---
+
+## Пример 30: `PrintAkkreditivRSF`
+
+**Источник:** `Mac/Cb/prpmacvi.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+MACRO PrintAkkreditivRSF( ncopy:integer ):bool
+
+  var PayerProps   :TPartyProperties = TPartyProperties("Payer",    pr_pmpaym, pr_debet,  pr_pmrmprop);
+  var ReceiverProps:TPartyProperties = TPartyProperties("Receiver", pr_pmpaym, pr_credit, pr_pmrmprop);
+
+  return PayAkkr0401060Report(PayerProps, ReceiverProps).Print();
+
+END;
+```
+
+---
+
+## Пример 31: `Report`
+
+**Источник:** `Mac/DLNG/SECUR/profitax.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+macro Report(FromDate, UptoDate, keep_silence, FIID, Sum/*structSum*/);
+  var continueSale, continueBuy, FirstBuyFlag, i = 0;
+  var OurDeals = DealFiltered (FromDate, UptoDate, FIID);
+  var SaleDealNum, SaleDealAmount, SaleDealPrice,
+       BuyDealNum,  BuyDealAmount,  BuyDealPrice,
+      FinRezIn,
+      FinRezOut,                       
+      EstimIn,
+      EstimOut,                        
+      TaxOverpayment,
+      TaxUnderpay;
+
+  if(not keep_silence)
+    InitProgress(OurDeals.NRecords, "Создание отчета... ", "Отчет по налогооблагаемой прибыли");
+  end;
+```
+
+---
+
+## Пример 32: `checkexec_OperationsOverValueNVPI`
+
+**Источник:** `Mac/DLNG/SECUR/ws_monitorcheckexec.mac`
+**Тип:** `macro`
+**Размер:** 65 строк
+
+```rsl
+macro checkexec_OperationsOverValueNVPI(MonitorDate, TypeEvent) : integer
+   
+   var query, ds, str_select = "", report = "", report_all = "", FD, FD2, ErrCode, RegValue, Flag2 = false, NeedExecute = false;
+   Flag2 = true;
+
+   query = RSDCommand( GetSQL_UnprocessedObjects_OpOverValueNVPI(MonitorDate) );
+   query.execute();
+
+   ds = TRsbDataSet(query, RSDVAL_CLIENT, RSDVAL_STATIC);
+   while( ds.MoveNext() )
+      if( ds.DocKind == DL_SECURITYDOC )
+         FD = SPFirstDoc( ds.DocKind, ds.DealID );
+         if(FD.ExistBack)
+            FD2 = SPFirstDoc( LEG_KIND_DL_TICK_BACK, ds.DealID );
+         end;
+
+         if( SP_DealNeedOverValueNVPI( MonitorDate, FD.tick ) != 0 )
+            NeedExecute = false;
+         else
+            NeedExecute = true;
+         end;
+
+         if( (Flag2 == true) and (NeedExecute == false) )
+            if( SP_RepoNeedOverValueNVPI( MonitorDate, FD.tick ) != 0 )
+               NeedExecute = false;
+            else
+               NeedExecute = true;
+            end;
+         end;
+
+         if( not NeedExecute )
+            continue;
+         end;
+
+         report = report + String("   ", FD.tick.rec.DealDate:13, " | ", FD.tick.rec.DealCode:14, " | ", FD.fininstr().rec.FI_Code:15, " | ", FD.fininstr().rec.Name:27, "\n");
+      elif( ds.DocKind == DL_NTGSEC )
+         FD = DL_NettingDoc( ds.DocKind, ds.DealID );
+
+         if( SP_NtgNeedOvervalueNVPI( MonitorDate, FD.dl_nett() ) != 0 )
+            continue;
+         end;
+
+         report = report + String("   ", FD.dl_nett().rec.SigningDate:13, " | ", FD.DealNumber():14, " | ", "":15, " | ", "":27, "\n");
+      end;
+   end;
+
+   if(report != "")
+      report_all =
+
+      "   Дата переоценки НВПИ: " + string(SubStr(String(MonitorDate),1,10):10) + "\n" +
+      " ----------------------------------------------------------------------------------\n" +
+      "   Дата операции | Номер операции |     Код ц/б     |       Наименование ц/б       \n" +    
+      " ----------------------------------------------------------------------------------\n" + 
+      report + 
+      " ----------------------------------------------------------------------------------\n";
+   end;
+
+   WriteToProtocol(TypeEvent, MonitorDate, report_all );
+
+   if(report != "")
+      return STATE_NO_PROCESSED;
+   else
+      return STATE_PROCESSED;
+   end;
+end;
+```
+
+---
+
+## Пример 33: `report`
+
+**Источник:** `Mac/DEPOSITR/661.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro report;
+
+  var namestr = "", address = "", i = 0, groupTurns;
+  var GroupDebitTotalK = $0.0L, GroupCreditTotalK = $0.0L,
+      DebitTotalK = $0.0L, CreditTotalK = $0.0L;
+  var GroupDebitTotalN = $0.0L, GroupCreditTotalN = $0.0L,
+      DebitTotalN = $0.0L, CreditTotalN = $0.0L;
+  var GroupDebitTotalF = $0.0L, GroupCreditTotalF = $0.0L,
+      DebitTotalF = $0.0L, CreditTotalF = $0.0L;
+
+  namestr = {Name_Bank} + " " + {NumberBranch};
+  if( statusBranch != I_DEPARTMENT_TYPE_FILIAL )
+    namestr = namestr + " Филиал " + ddep.rec.Name;
+  end;
+```
+
+---
+
+## Пример 34: `PrintUnderLn`
+
+**Источник:** `Mac/DEPOSITR/tr2stat.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+macro PrintUnderLn(Str, UlChr)
+
+  var
+    Len = StrLen(Str),
+    i = 0;
+
+  PrintLn(" " + Str);
+  Print(" ");
+  while(i < Len)
+    Print(UlChr);
+    i = i + 1;
+  end;
+```
+
+---
+
+## Пример 35: `PrintBottom`
+
+**Источник:** `Mac/DEPOSITR/passive1.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+macro PrintBottom
+
+  [--------------------------------------------------------------------------------------------------------------------];
+  Print( StrFor( 12 ) );
+end;
+```
+
+---
+
+## Пример 36: `PrintEnd`
+
+**Источник:** `Mac/Invh/R_ware.mac`
+**Тип:** `macro`
+**Размер:** 6 строк
+
+```rsl
+macro PrintEnd ()
+  /*печать подвала*/
+  Report(3);
+         /*"", "", "", "", "",
+         "", "", "", "", "", "");*/
+end;
+```
+
+---
+
+## Пример 37: `MakeReport`
+
+**Источник:** `Mac/DEPOSITR/act_prn.mac`
+**Тип:** `macro`
+**Размер:** 32 строк
+
+```rsl
+MACRO MakeReport( prmode, /* режим печати*/
+                  copies /* количество копий отчетных документов */ )
+    /* по умолчанию печатается все подряд в одном экземпляре */  
+    if ( (ValType( prmode ) == V_UNDEF) )
+        prmode = PRMODE_ACT_SPEC_LIST;    
+    end;
+ 
+    if ( (ValType( copies ) == V_UNDEF) or (copies <= 0) )
+        copies = 1;
+    end;
+
+    if ( (prmode != PRMODE_LIST) and not RunActTakePanel() )
+        if ( (prmode == PRMODE_ACT_SPEC) or (prmode == PRMODE_ACT) )
+            return;
+        else
+            prmode = PRMODE_LIST;  
+        end;     
+    end;     
+
+    var report = ActTakeReport( prmode );    
+
+    report.pump();
+    report.formatData();
+
+    while ( copies > 0 )
+    report.print();
+        copies = copies - 1;
+    end;
+
+onError( errObj );
+    msgbox( what(errObj) );  
+END;
+```
+
+---
+
+## Пример 38: `FormReport`
+
+**Источник:** `Mac/BOOK/IPSRecipSend.mac`
+**Тип:** `macro`
+**Размер:** 24 строк
+
+```rsl
+macro FormReport(numpart,   // номер пачки
+                 errText,   // текст ошибки, не связанной с получателем
+                 responce ) // структура ответа получателя
+  SetOutput(getFullRepName(), true);
+
+  if(errText == "")
+    if( numpart == 0 )
+      print("Синхронизация со справочником RS-Connect");
+    end;
+    print("\n\t Отправка сообщения в RS-Connect " + (numpart + 1) + ":");
+    if(responce.responseConnectData.objectError.ErrorCode != "0")
+      print("\n\t\tСообщение не принято со следующими ошибками:");
+      var j = 0;
+      while(j < responce.responseConnectData.objectError.ErrorText.size)
+        print("\n\t\t" + responce.responseConnectData.objectError.ErrorText[j]);
+        j = j + 1;
+      end;
+      print("\n");
+    else
+      print("\n\t\t Выполнено успешно");
+    end;
+  else
+    print(errText);
+  end;
+```
+
+---
+
+## Пример 39: `Блок`
+
+**Источник:** `Mac/DLNG/SECUR/IncaccpsReg.mac`
+**Тип:** `block`
+**Размер:** 15 строк
+
+```rsl
+  if( RepForm.GetFieldValue( PNFLD_INCACCPS_REG_NOTGOS ) == true )
+    /* затем запускаем 8-2 */
+    NGosRep = SP_TxReg82_Report( RepForm.GetFieldValue( PNFLD_INCACCPS_REG_DEPCODE ),
+                                 RepForm.GetFieldValue( PNFLD_INCACCPS_REG_PERIOD ),
+                                 RepForm.GetFieldValue( PNFLD_INCACCPS_REG_YEAR ),
+                                 RepForm.GetFieldValue( PNFLD_INCACCPS_REG_CIRCINMARKET ),
+                                 RepForm.GetFieldValue( PNFLD_INCACCPS_REG_NOTCIRCINMARKET ),
+                                 RepForm.GetFieldValue( PNFLD_INCACCPS_REG_NOMINRUR ),
+                                 RepForm.GetFieldValue( PNFLD_INCACCPS_REG_NOMINCUR ),
+                                 RepForm.GetFieldValue( PNFLD_INCACCPS_REG_AVRCODE ),
+                                 RepForm.GetFieldValue( PNFLD_INCACCPS_REG_BACKREPO ),
+                                 RepForm.GetFieldValue( PNFLD_INCACCPS_REG_PRINTMETHOD ) );
+    NGosRep.Run();
+  end;
+end;
+```
+
+---
+
+## Пример 40: `Constructor`
+
+**Источник:** `Mac/DEPOSITR/merge_br.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+Macro Constructor
+
+ var OpenStat = True;
+
+  if( not Create( Report ) )
+     OpenStat = False;
+  end;
+```
+
+---

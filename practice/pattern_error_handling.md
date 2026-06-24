@@ -752,3 +752,820 @@ macro GenDoc_v2021_3_0( addrMes, type )
 
 ---
 
+## Пример 16: `ПолучитьОбщиеПараметрыСводного`
+
+**Источник:** `Mac/Mbr/swsm102n.mac`
+**Тип:** `macro`
+**Размер:** 59 строк
+
+```rsl
+macro ПолучитьОбщиеПараметрыСводного( publicCharges, publicRate, publicBankOperationCode )
+   var IsFirst = TRUE, field_value, CurrentCode, error, TextError;
+
+   publicCharges = null;
+   publicRate = null;
+
+   PaymMulty.SubSplittedPayment = wlpmpaym.PaymentID;
+   PaymMulty.CreatedInSS = 1;   
+   while( OneStepMultyPaym( IsFirst, wlpmpaym.PaymentID ) )      
+
+      /* Ищем свойства */
+      if( FindPayment( PaymMulty.PaymentID, 0, 0, 0, 0, true, 0, wlpmpropdeb, wlpmpropcred, wlpmrmprop ) != 0 )
+         std.out( 2, "PaymentID: " + PaymMulty.PaymentID );
+         RunError( "|Не найден платеж" );
+      end;
+
+      field_value = GetCommisCode (wlpmrmprop.ComissCharges);
+
+      if ( IsFirst )
+          publicCharges = field_value;
+      elif ( (valtype(publicCharges)!=V_UNDEF) AND (publicCharges!=field_value) )
+          publicCharges = null;
+      end;
+
+      if( (PaymMulty.FIID != PaymMulty.PayFIID) AND (PaymMulty.Rate != 0.0) )
+         if ( IsFirst )
+            publicRate = DefineSWIFTRateByPmPaym(PaymMulty);
+         elif ( (valtype(publicRate)!=V_UNDEF) AND (publicRate!=DefineSWIFTRateByPmPaym(PaymMulty)) )
+           publicRate = null;
+         end;
+      else
+         publicRate = null;
+      end;
+
+      CurrentCode = "";
+      NotesPaymentSelve.ReadNextNote( PaymMulty.PaymentID, BankOperationCodeField, CurrentCode, error );
+//      if ( not error )
+//        ЗаписатьПолеЛог( BankOperationCodeField, CurrentCode ) ;
+//      end;
+      /* Убедимся, что нет конфликтующих кодов */
+      TextError = NotesPaymentSelve.ReadNextNote( PaymMulty.PaymentID, BankOperationCodeField, CurrentCode, error );
+      if ( error )
+         RunError( "|" + TextError );
+      end;
+      if ( IsFirst )
+         publicBankOperationCode = CurrentCode;
+      else
+         if ( publicBankOperationCode!=CurrentCode )
+            publicBankOperationCode = BANKOPERCODE_CREDIT;
+         end;
+      end;
+
+      IsFirst = FALSE;
+   end;  
+
+   SetParm( 0, publicCharges );
+   SetParm( 1, publicRate );
+   SetParm( 2, publicBankOperationCode );
+end;
+```
+
+---
+
+## Пример 17: `FindMultiPaym`
+
+**Источник:** `Mac/Cb/pmmulti.mac`
+**Тип:** `macro`
+**Размер:** 22 строк
+
+```rsl
+macro FindMultiPaym( PayFIID, CorSchem, ValueDate, Department )
+  var op = OP_MULTI_FIRST, MultyID = 0, Count = 1, Num, error, CheckDprt = FALSE;
+
+  GetRegistryValue( PathDprtMulti, V_BOOL, CheckDprt, error );
+
+  while( Count AND (GetMultiPayments( op, PM_PROP_READY, TempPaym, PayFIID, CorSchem ) == TRUE) )
+    op = OP_MULTI_NEXT;
+    if( TempPaym.ValueDate == ValueDate )
+      if( (CheckDprt == FALSE) OR (TempPaym.Department == Department) )    
+        /* Если есть ограничение - подсчитываем текущее количество */
+        if( MaxMultiPaym != 0 ) 
+          Num = CalcMultiPayments( TempPaym.PaymentID );
+        end;
+        /* Если нет ограничения или вписываемся - то добавляем */
+        if( (MaxMultiPaym == 0) OR ((MaxMultiPaym != 0) AND (Num < MaxMultiPaym)) )
+          /* Здесь могут быть дополнительные проверки на сведение */
+          MultyID = TempPaym.PaymentID;
+          Count   = 0;
+        end;
+      end;
+    end;
+  end;
+```
+
+---
+
+## Пример 18: `callUnrpGetRequest`
+
+**Источник:** `Mac/Cb/ws_unrp_get_request.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro callUnrpGetRequest(request, urlAddress)
+    var wsClient = initWsClient(urlAddress);
+    var javaReq = request.toJava;
+    var result = wsClient.wsUNRPGetRequest(request.toJava);
+    return UniversalReportGetRequestResponseType.fromJava(result);
+OnError(e)
+    properlyThrow(e);
+end;
+```
+
+---
+
+## Пример 19: `callEfrsbMassCheck`
+
+**Источник:** `Mac/Cb/ws_efrsb_masscheck.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro callEfrsbMassCheck(request, urlAddress)
+    var wsClient = initWsClient(urlAddress);
+    var result = wsClient.wsEFRSBMassCheck(request.toJava);
+    return EfrsbMassCheckResponse.fromJava(result);
+OnError(e)
+    properlyThrow(e);
+end;
+```
+
+---
+
+## Пример 20: `callSbpSendReceivers`
+
+**Источник:** `Mac/BOOK/ws_sbp_receivers.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro callSbpSendReceivers( request, urlAddress )
+    var wsClient = initWsClient(urlAddress);
+    var result = wsClient.wsSBPSendReceivers( request.toJava );
+    return GetReceiverInfoRespType.fromJava( result );
+OnError(e)
+    properlyThrow(e);
+end;
+```
+
+---
+
+## Пример 21: `callService`
+
+**Источник:** `Mac/Cb/ws_rkl_get_client_info.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro callService(request, urlAddress)
+    var wsClient = initRklWsClient(urlAddress);
+    var javaReq = request.toJava;
+    var result = wsClient.rklGetClientInfo(javaReq);
+    return RklGetClientInfoResponseType.fromJava(result);
+OnError(e) 
+    properlyThrow(e);
+end;
+```
+
+---
+
+## Пример 22: `callUNRPGiveResult`
+
+**Источник:** `Mac/Cb/ws_unrp_give_result.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro callUNRPGiveResult(request, urlAddress)
+    var wsClient = initWsClient(urlAddress);
+    var javaReq = request.toJava;
+    var result = wsClient.wsUNRPGiveResult(request.toJava);
+    return UniversalReportGiveResultResponseType.fromJava(result);
+OnError(e)
+    properlyThrow(e);
+end;
+```
+
+---
+
+## Пример 23: `SetCalcDates`
+
+**Источник:** `Mac/CONV_FC/v_laros_fc_1_2.mac`
+**Тип:** `macro`
+**Размер:** 42 строк
+
+```rsl
+macro SetCalcDates()
+   var stat = True;
+
+   WorkWithDate( DateConvert, PC_ALG.GrafCalc, PC_ALG.DayCalc, DateNextCalc );
+   /*println( depositr.Account, " " , DateConvert, " " , DateNextCalc );*/
+
+   if( DateNextCalc != NullDate )
+      /* Определили дату следующего причисления */
+      WorkWithDateBack( DateNextCalc,
+                        PC_ALG.GrafCalc,
+                        PC_ALG.DayCalc,
+                        DatePrevCalc );
+      if( DatePrevCalc == NullDate )
+         Protocol.Error("Для счета ", depositr.Account,
+                                  "не определена дата начала периода расчета" );
+         stat = False;
+      end;
+      if( IsIntresting( Trim( depositr.Type_Account ) ) ) /* Пока для срочного с ежемесячной выплатой */
+         /* Определили дату следующего причисления */
+
+         WorkWithDateBack( DatePrevCalc,
+                           PC_ALG.GrafCalc,
+                           PC_ALG.DayCalc,
+                           DatePrevCalc );
+         if( DatePrevCalc == NullDate )
+            Protocol.Error( "Для \"интересного\" вида вклада", sb_dtyp.Kind,
+                            " и счета ", depositr.Account,
+                            "не определена дата начала периода расчета" );
+            stat = False;
+         end;
+      end;
+   else
+      Protocol.Error( "Для счета ", depositr.Account,
+                      "не определена дата окончания периода расчета" );
+      stat = False;
+
+   end;
+   /*println( DatePrevCalc, " ", DateNextCalc );*/
+
+
+   return stat;
+end;
+```
+
+---
+
+## Пример 24: `Payment_RePayment`
+
+**Источник:** `Mac/ACQUIRER/acq_Pay.mac`
+**Тип:** `macro`
+**Размер:** 11 строк
+
+```rsl
+macro Payment_RePayment(tran,isGroup)
+var stat = true;
+var trnOpenFiles = 1;
+isOwn = true;
+// ProfilerStart("Payment_RePayment");
+  Error = 20005; //Транзакция не может быть оплачена
+  notGroupPayment = not isGroup;
+
+  if ( isGroup )
+    trnOpenFiles = 0;
+  end;
+```
+
+---
+
+## Пример 25: `callOOServiceSendInfExecOrder`
+
+**Источник:** `Mac/Cb/ws_oo_SendInfExecOrder.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro callOOServiceSendInfExecOrder(request, urlAddress)
+    var wsClient = initOoWsClient(urlAddress);
+    var result = wsClient.ooGetExecPayInfo(request.toJava);
+    return OOSendInfExecOrderResponseType.fromJava(result);
+OnError(e)
+    properlyThrow(e);
+end;
+```
+
+---
+
+## Пример 26: `ОбработатьЦБ`
+
+**Источник:** `Mac/DLNG/SECUR/Replication/txproc_avr_fun.mac`
+**Тип:** `macro`
+**Размер:** 20 строк
+
+```rsl
+MACRO ОбработатьЦБ( AvoirData:TAvoirData, Action:integer, Error:TArray ) : BOOL
+   var   ret:bool = true;
+
+   gAvoirData         = AvoirData;
+   gAvoirData.Action  = Action;
+
+   if( (Error != null) and (valtype(Error) == V_GENOBJ) )
+      gAvoirData.Error   = Error;
+   end;
+
+   if( gAvoirData.InTrn == false )
+      if (ProcessTrn(0, "ProcessAvoiriss", fininstr, avoiriss, avrinvst, objcode, objrgdoc, objkcode, objcode, objalreg, partyown ) == false )
+         ret = false;
+      end;
+   else
+      ProcessAvoiriss();
+   end;
+
+   return ret;
+END;
+```
+
+---
+
+## Пример 27: `StartConversion`
+
+**Источник:** `Mac/DLNG/SECUR/Convert/dv_cnvmsfo9.mac`
+**Тип:** `macro`
+**Размер:** 48 строк
+
+```rsl
+MACRO StartConversion()
+    var error = 0;
+    
+    msgbox("Начало конвертации");
+    
+    if( (СчетДляУчетаФР != БС_706) and (СчетДляУчетаФР != БС_10801_10901) )
+        msgbox("Не реализована обработка значения "+СчетДляУчетаФР+" для параметра \"СчетДляУчетаФР\"");
+        error = 1;
+    end;
+    
+    if( not error )
+        StartTransaction("1. Проставляем признак ПФИ");
+        УстановитьПризнакПФИ();
+        EndTransaction(error);
+    end;
+    
+    if( not error )
+        StartTransaction("2. Обработка сделок \"Своп\"");
+        error = ВыполнитьПереносОстатковПоОперациямСвоп();
+        EndTransaction(error);
+    end;
+    
+    if(not error)
+        msgbox("Конвертация успешно завершена");
+    else
+        msgbox("При конвертации возникли ошибки.\nПосле устранения причин ошибок повторную конвертацию следует выполнять, начиная с проблемного блока.\nВсе предыдущие успешно выполненные блоки следует закомментировать в макросе.");
+    end;
+    
+OnError( errObj );
+    if(RslDefCon.IsInTrans)
+        RslDefCon.RollbackTrans();
+    end;
+    
+    if(errObj and errObj.err and errObj.err.environment)
+        var j;
+        var err_text = "", delim = "";
+        j = 0;
+        while(j < errObj.err.environment.ErrorCount)
+            err_text = err_text + delim  + errObj.err.environment.error(j).descr;
+            delim = "\n";
+            j = j + 1;
+        end;
+        
+        MsgBox(err_text);
+    end;
+    
+    return 1;
+END;
+```
+
+---
+
+## Пример 28: `ProcessPayment`
+
+**Источник:** `Mac/Cb/pmmulti.mac`
+**Тип:** `macro`
+**Размер:** 39 строк
+
+```rsl
+macro ProcessPayment( Cs, PayFIID, ValueDate, Department )
+  var ID, result = RES_MULTI_SKIP, RefID = 0, Number = "", UseMulti = FALSE, error;
+
+  RES_MULTI_PAYM = result;
+
+  GetRegistryValue( PathUseMulti, V_BOOL, UseMulti, error );
+
+  if( (error == 0) AND (UseMulti == TRUE) )
+    
+    /* Считываем максимальное допустимое число платежей в сводном */
+    GetRegistryValue( PathMaxMulti, V_INTEGER, MaxMultiPaym, error );
+
+    /* Ищем сводные платежи по схеме расчетов и филиалу текущего платежа */
+    ID = FindMultiPaym( PayFIID, Cs, ValueDate , Department);
+
+    if( ID != 0 )               /* Вставляем платеж в имеющийся сводный */
+      result = RES_MULTI_ADD;
+      MultiPaym.PaymentID  = ID;
+      MultiPaym.Department = Department;
+    else
+      result = RES_MULTI_NEW;    /* Начинаем новый сводный платеж */
+
+      if( (GetReferenceIDByType(
+               520, /*OBJTYPE_MULTIPAYMENT*/
+               1,                    
+               RefID ) == 0) AND (RefID != 0) )
+        if( GenerateReference( RefID, Number ) != 0 )
+          MsgBox( "Ошибка при генерации номера сводного платежа" );
+          return 1;
+        end;
+      end;
+
+      MultiRmprop.Number = Number;      
+
+    end;
+
+    /* Заполняем результат обработки платежа */
+    RES_MULTI_PAYM = result;
+  end;
+```
+
+---
+
+## Пример 29: `ЗакрытьКредитнуюЛинию`
+
+**Источник:** `Mac/DLNG/MMARK/mmlibr.mac`
+**Тип:** `macro`
+**Размер:** 54 строк
+
+```rsl
+MACRO ЗакрытьКредитнуюЛинию( tick )
+    var  error = 0, flag, stat, account, rest, fd;
+
+    GetRegistryValue("MMARK\\ОБЩИЕ\\ЗАКРЫВАТЬ_СЧЕТА_ПО_СДЕЛКЕ",
+                    V_BOOL, flag, stat);
+
+    if (stat)
+        mm_error("Ошибка при работе с реестром");
+        error = 1;
+    else
+        if (flag)
+            fd = MMFirstDoc(tick.BOfficeKind, tick.DealID, true);
+
+            if ((fd.GetTick().GenAgrID > 0) and
+                (fd.GetGenAgr().AccMode == 2))
+                return 0;
+            end;        
+			
+            account = TRsbDataSet("select categ.t_code, accdoc.t_account, accdoc.t_currency, "
+                                    "accdoc.t_chapter, accdoc.t_firole from "
+                                    "dmcaccdoc_dbt accdoc, dmccateg_dbt categ where "
+                                    "(accdoc.t_dockind = 208)and "
+                                    "(accdoc.t_docid = " + tick.DealID + ")and "
+                                    "(accdoc.t_catid = categ.t_id)and "
+                                    "(categ.t_updatemode = 0)");
+
+                while(account.MoveNext)
+                    if (MC_FindAndOpenAccount(account.code, fd, date(31,12,9999), 0, MC_OPENACC_CHECKEXIST))
+                        rest = Money(0);
+
+                        rest = abs(RestA(account.account, {curdate}, NULL, account.chapter, account.currency)) +
+                                abs(RestA(account.account, date(31,12,9999), NULL, account.chapter, account.currency));
+    
+                        if (rest > 0)
+                            mm_error("Не нулевой остаток на счете " + account.account);
+                            error = 1;
+                            break;
+                        elif (MC_FindAndCloseAccount (account.code, fd, {curdate}, account.firole, account.currency, MC_ACC_CLOSE_ALL))
+                            mm_error("Невозможно закрыть счет " + account.account);
+                            error = 1;
+                            break;
+                        else
+                            error = 0;
+                        end;
+                    else
+                        error = 0;
+                    end;
+                end;
+            else
+                error = 0;
+            end;
+        end;
+    return error;
+END;
+```
+
+---
+
+## Пример 30: `ОбработатьТребование`
+
+**Источник:** `Mac/DLNG/SECUR/Replication/txproc_paym_fun.mac`
+**Тип:** `macro`
+**Размер:** 20 строк
+
+```rsl
+MACRO ОбработатьТребование( DemandData:TDemandData, Action:integer, Error:TArray ) : BOOL
+   var   ret:bool = true;
+
+   gDemandData         = DemandData;
+   gDemandData.Action  = Action;
+
+   if( (Error != null) and (valtype(Error) == V_GENOBJ) )
+      gDemandData.Error   = Error;
+   end;
+
+   if( gDemandData.InTrn == false )
+      if (ProcessTrn(0, "ProcessDemand", rq, pmlink ) == false )
+         ret = false;
+      end;
+   else
+      ProcessDemand();
+   end;
+
+   return ret;
+END;
+```
+
+---
+
+## Пример 31: `OperBlock`
+
+**Источник:** `Mac/Cb/ws_blockoper.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro OperBlock(OperBlockParm)
+    var wsOperBlock : TWsOperBlock = TWsOperBlock;
+    var wsAnswer : TWsOperBlockAnswer;
+
+    WS_CheckParameter(1, OperBlockParm, true, V_GENOBJ);
+    FillTWsOperBlock(OperBlockParm, @wsOperBlock);
+
+    wsAnswer.stat = AL_WsOperBlock(wsOperBlock.Oper, wsOperBlock.Status, wsOperBlock.StartDate, wsOperBlock.EndDate);
+    if (wsAnswer.stat)
+        wsAnswer.error = GetErrMsg();
+    end;
+
+    return wsAnswer;
+end;
+```
+
+---
+
+## Пример 32: `GetCardControlFileDate`
+
+**Источник:** `Mac/Cb/countryccimp.mac`
+**Тип:** `macro`
+**Размер:** 19 строк
+
+```rsl
+macro GetCardControlFileDate(ImportFilePath)
+    var PalaceDate = ZeroValue(V_DATE);
+    if (ExistFile(ImportFilePath))
+        InitExcel();
+
+        var err = "";
+        if (OpenExcel(false, ImportFilePath, @err))
+            var ActiveSheet = ExcelApplication.ActiveSheet;
+            if (CheckHeader(ActiveSheet, headerStart) or CheckHeader(ActiveSheet, headerStart2))
+                PalaceDate = GetPlaceDate(ActiveSheet);
+            end;
+            ExcelApplication.Quit();
+        end;
+    end;
+
+    return PalaceDate;
+OnError
+    return ZeroValue(V_DATE);
+end;
+```
+
+---
+
+## Пример 33: `check`
+
+**Источник:** `Mac/DEPOSITR/GS/GSDeleteSenders.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+  macro check(): bool
+    deleteSender();
+    
+    return true;
+
+  OnError(err)
+    return handleError(err);
+  end;
+```
+
+---
+
+## Пример 34: `RunImport`
+
+**Источник:** `Mac/Cb/es_import_xml.mac`
+**Тип:** `macro`
+**Размер:** 28 строк
+
+```rsl
+macro RunImport(RunESCheckParty, FullFileName)
+    const UnknownFormat = "Ошибка: файл " + FullFileName + " имеет не поддерживаемую структуру";
+    RunESCheckParty = false;
+
+    ClearTables();
+    
+    var parsererr = "";
+    if (not ValidateXmlFileByXsdNamespace(FullFileName, "es.xsd", "http://eu.europa.ec/fpi/fsd/export", @parsererr))
+        return String(UnknownFormat + ". " + parsererr);
+    end;
+
+    var rootHandler = TRootElementHandler(null);
+    rootHandler.FullFileName = FullFileName;
+    var sp = SaxParser(rootHandler);
+    sp.parse(FullFileName);
+
+    ProcessTrn(0, R2M(rootHandler, "MergeData"));
+    EndAction();
+    return true;
+OnError(error)
+    EndAction();
+
+    if (rootHandler.error == EXIT_NO_ERROR)
+        return true;
+    end;
+
+    return UnknownFormat;
+end;
+```
+
+---
+
+## Пример 35: `Fill22FH`
+
+**Источник:** `Mac/Mbr/swndd544.mac`
+**Тип:** `macro`
+**Размер:** 17 строк
+
+```rsl
+macro Fill22FH( Qualifier, Scheme, Indicator )
+   var error;
+   msginf.NeedBlock = false;
+   if ( CurrentBlock==SETDET_Block )
+       if ( Qualifier=="SETR" )          
+          msginf.SettlementTransactionType = GetllValueElement(OBJTYPE_MSGTRANS, Indicator, error);
+          if ( error )
+             return false;
+          end;          
+       end;
+   elif( Qualifier=="TTCO" )
+     if( Indicator == "GTDL")
+       msginf.NeedBlock = true;
+     end;
+   end;
+   return true;
+end;
+```
+
+---
+
+## Пример 36: `GetFileName`
+
+**Источник:** `Mac/Mbr/swsbfref.mac`
+**Тип:** `macro`
+**Размер:** 21 строк
+
+```rsl
+macro GetFileName( SeqValue, ObjKind, ObjAddr )
+  var refer, PayerMesID, CodePayerMesBank, error;
+  
+  if (ObjKind==OBJTYPE_SESS)
+    SetBuff(wlsess,  ObjAddr);
+    if (wlpmpaym.PayerMesBankID)
+      PayerMesID = wlsess.InsideAbonentID;
+    else 
+      PayerMesID = {OurBank};
+    end;       
+
+    CodePayerMesBank = ПолучитьКодСубъекта(PayerMesID, PTCK_SBRF, Error);
+    if (Error != 0)
+      CodePayerMesBank = CodePayerMesBankDefault;
+    end;
+
+    refer = string("sw", SeqValue:6, ".", CodePayerMesBank:3:r);
+    refer = strsubst(refer, " ", "0");
+  else
+    refer = "";
+  end;
+```
+
+---
+
+## Пример 37: `callKYCGetRiskService`
+
+**Источник:** `Mac/Cb/ws_kyc_get_risk_client_request.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro callKYCGetRiskService(request, urlAddress)
+    var wsClient = initWsClient(urlAddress);
+    var javaReq = request.toJava;
+    var result = wsClient.wsKYCGetRiskClient(request.toJava);
+    return KYCGetRiskClientResponseType.fromJava(result);
+OnError(e)
+    properlyThrow(e);
+end;
+```
+
+---
+
+## Пример 38: `GetWaitingSynWS`
+
+**Источник:** `Mac/Cb/QueueWSLib.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro GetWaitingSynWS()
+
+
+  var error = 0;
+  if(GWaitingSyn == -2)
+    GetRegistryValue( "COMMON\\QUEUE\\WAITING SYNC", V_INTEGER, GWaitingSyn, error );
+  end;
+```
+
+---
+
+## Пример 39: `GetMessageFunction`
+
+**Источник:** `Mac/Mbr/swdpgmes.mac`
+**Тип:** `macro`
+**Размер:** 8 строк
+
+```rsl
+macro GetMessageFunction(msginf:object)   
+   var error, res;
+   res = GetllValueElement(OBJTYPE_MSGFUN, msginf.messageFunction, error);
+   if ( error )
+      RunError( "|Неверное значение функции сообщения" );
+   end;
+   return res;
+end;
+```
+
+---
+
+## Пример 40: `OON_ImportList`
+
+**Источник:** `Mac/Cb/oonimportlist.mac`
+**Тип:** `macro`
+**Размер:** 53 строк
+
+```rsl
+macro OON_ImportList(FullFileName, Mode, ImpListMode)
+    var Result : ImportResult;
+    var erstr;
+    Result.stat = true;
+
+    var file_path = FullFileName;
+    if(not IsStandAlone) //Трехзвенка
+        var strFile, strExt;
+        SplitFile(FullFileName, strFile, strExt);
+        file_path = CallRemoteRsl("dlreptl.mac", "DLREPTL_GetTxtFileDir") + strFile + UserNumber + strExt; // dlwrept.mac
+
+        if (not CopyFile(FullFileName, "$" + file_path))
+            msgbox ("Ошибка при передаче файла на терминал");
+            return false;
+        else
+            var FullTxtFilePath = DLREPTL_GetTxtFileDir() + strFile + "_" + UserNumber + strExt;
+            if (not CopyFile("$" + file_path, FullTxtFilePath))
+                msgbox ("Ошибка при передаче файла на терминал");
+                return false;
+            else
+                file_path = FullTxtFilePath;
+            end;
+        end;
+    end;
+
+    if ((Mode == FM_OON_IMP_XML) or (Mode == FM_OON_IMP_XML_RU))
+        Result = OON_ImportListStart(file_path, ImpListMode, Mode);
+    end;
+
+    if (result.Stat AND (ImpListMode != 1))
+        var q = MsgBoxEx ("Выполнить Процедуру проверки субъектов экономики по Перечню санкций СБ ООН? ", MB_YES + MB_NO);
+        if (q == IND_YES)
+            FM_PtLstStartOONProc();
+        end;
+    else
+        if ((ValType(result.Error) == V_STRING) and (result.Error != ""))
+            erstr = result.Error;
+            MsgBox (erstr);
+        end;
+    end;
+
+    return Result.Stat;
+OnError(error)
+    var detail = error.err;
+
+    if (ValType(error.err) == V_UNDEF)
+        detail = error.Message;
+    end;
+    erstr = "Ошибка: файл \"" + FullFileName + "\" не загружен. " + detail;
+    EndAction ();
+    MsgBox (erstr);
+    return false;
+end;
+```
+
+---

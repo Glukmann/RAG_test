@@ -883,3 +883,914 @@ PRIVATE MACRO ПроверитьИтоговыеПлатежи( ntg )
 
 ---
 
+## Пример 16: `TaxRate`
+
+**Источник:** `Mac/DLNG/TRUST/tsmtgain.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+  MACRO TaxRate():string
+     var m_TaxRate = "";
+     if( m_DataSet.NotResident == "X" )
+        m_TaxRate = "30% (Нерезидент)";
+     else
+        m_TaxRate = "13% (Резидент)";
+     end;
+     return m_TaxRate;
+  END;
+```
+
+---
+
+## Пример 17: `OpenOrCreateTrFiles`
+
+**Источник:** `Mac/DEPOSITR/t2s_comm.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro OpenOrCreateTrFiles(BranchID)
+
+  var
+    BIDStr;
+
+  FileExt = ".s00";
+  BIDStr = String(BranchID);
+  StrSet(FileExt, 5 - StrLen(BIDStr), BIDStr);
+  if(not OpenTrFiles )
+    if(not CreateTrFiles)
+      MsgBox("Ошибка при создании транспортных файлов");
+      Exit( -1 );
+    end;
+  end;
+```
+
+---
+
+## Пример 18: `GetFullSQLConditionDebug`
+
+**Источник:** `Mac/Cb/ws_ptoffice.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+macro GetFullSQLConditionDebug( outFileName:String, dataString ) 
+  var fullOutFileName:String = ""; 
+  FILE outFile() txt write; 
+  if( ValType( outFileName ) != V_UNDEF ) 
+    fullOutFileName = GetTxtFileName( outFileName ); 
+
+    if( Open( outFile, fullOutFileName ) == true ) 
+      SetOutput( fullOutFileName ); 
+      println( dataString ); 
+      SetOutput( NULL, true ); 
+      Close( outFile ); 
+    end; 
+  end;
+```
+
+---
+
+## Пример 19: `Блок`
+
+**Источник:** `Mac/Cb/ws_emortgage_common.mac`
+**Тип:** `block`
+**Размер:** 21 строк
+
+```rsl
+class AddressType
+    var Fias = null;//String
+    var Okato = null;//String
+    var Oktmo = null;//String
+    var Kladr = null;//String
+    var PostalCode = null;//String
+    var Region = null;//RegionType
+    var Autonomy = null;//AutonomyType
+    var District = null;//AddressElement3Type
+    var City = null;//AddressElement3Type
+    var UrbanDistrict = null;//AddressElement3Type
+    var Locality = null;//AddressElement3Type
+    var Street = null;//StreetType
+    var AdditionalElement = null;//AdditionalElementType
+    var SubordinateElement = null;//AddressElement3Type
+    var House = null;//TypeHouseType
+    var Building = null;//TypeHouseType
+    var Structure = null;//TypeHouseType
+    var Apartment = null;//ApartmentType
+    var Other = null;//String
+    var Note = null;//String
+```
+
+---
+
+## Пример 20: `GetFIO`
+
+**Источник:** `Mac/CONV_FC/v_laros_fc_1_1.mac`
+**Тип:** `macro`
+**Размер:** 40 строк
+
+```rsl
+macro GetFIO
+(
+ FIOStr,        /* Исходная строка      */
+ F,             /* Фамилия              */
+ I,             /* Имя                  */
+ O              /* Отчество             */
+)
+/*
+  Получение фамилии, имени и отчества из строки
+*/
+  var F_ = "",
+      I_ = "",
+      O_ = "",
+      ptr= 0;
+
+  FIOStr = RecodeString( trim( FIOStr ), strLat, strRus );
+
+  FIOStr = StrUpr( FIOStr );
+
+  ptr = strbrk( FIOStr, FIODElim );
+  if( ptr > 0 )
+    F_     = trim( substr( FIOStr, 1, ptr ) );
+    FIOStr = trim( substr( FIOStr, ptr+1 ) );
+
+    ptr = strbrk( FIOStr, FIODElim );
+    if( ptr > 0 )
+      I_     = trim( substr( FIOStr, 1, ptr ) );
+      FIOStr = trim( substr( FIOStr, ptr+1 ) );
+
+      O_ = trim( FIOStr );
+    else
+      I_ = trim( FIOStr );
+    end;
+  else
+    if( strlen( FIOstr ) )   /* Задана только фамилия */
+      F_ = FIOstr;
+    else
+      F_ = "Б\\и";
+    end;
+  end;
+```
+
+---
+
+## Пример 21: `Form_0401026`
+
+**Источник:** `Mac/DEPOSITR/form_36.mac`
+**Тип:** `macro`
+**Размер:** 142 строк
+
+```rsl
+macro Form_0401026()
+
+ var
+   v_FIO      = "",
+   v_FIO_Sign = "",
+   v_Owner    = "",
+   v_Address  = "",
+   v_Phone    = "",
+   v_BankName = {Name_Bank},
+   v_Account  = ALG_DEPOSITOR.Account,
+   v_DateSet  = "";
+
+   if ( clnt.GetRecord( depositr.CodClient ) )
+     v_FIO   = clnt.CurRec.ConvertFIOFull();
+     v_Owner = v_FIO + ", дата рождения: " +
+       String( clnt.CurRec.rec.Born:m ) + ", " +
+       clnt.CurRec.MakeDocStr();
+     // v_Address  = clnt.CurRec.rec.AddressF;
+     v_Address = commclnt_Получить_Поле_Address_Фактического_Адреса( clnt.CurRec );
+     v_Phone   = GetPhoneNumberF36(clnt.CurRec.rec.CodClient);
+   end;
+
+   if ( ( ALG_NFOPR.objectType == 222 )  OR  // Ввод новой доверенности.
+        ( ALG_NFOPR.objectType == 224 )  OR  // Продление доверенности.
+        ( ALG_NFOPR.objectType == 226 )  OR  // Ввод передоверия.
+        ( ALG_NFOPR.objectType == 228 ) )    // Отмена передоверия.
+     FillFIOForTrast();
+     v_FIO_Sign = sFIO_Trast;
+   else
+     v_FIO_Sign = v_FIO;
+   end;
+
+   if ( FlagDate )  /* Проставить значение в поле "Дата заполнения". */
+     v_DateSet  = String( {curdate}:m );
+   end;
+
+ [
+                                                           ------------------
+                                                           |    Код формы   |
+                                                           |    документа   |
+                                                           |     по ОКУД    |
+                                                           ------------------
+                                                           |     0401026    |
+                                                           ------------------
+
+                Карточка
+   с образцами подписей и оттиска печати
+
+                                               |----------------------------|
+                                               |        Отметка банка       |
+   ########################################### |                            |
+                                               | -------------------------- |
+                                               |          (подпись)         |
+                                               | "___" ____________ 20___г. |
+   ------------------------------------------- |                            |
+        Место нахождения (место жительства)    |----------------------------|
+    ########################################## |                            |
+    ------------------------------------------ |----------------------------|
+                                               |                            |
+    ------------------------------------------ |----------------------------|
+                                               |                            |
+    ------------------------------------------ |----------------------------|
+                                               |                            |
+    _тел. N (_______) ######################## |                            |
+     ######################################### |                            |
+    ------------------------------------------ |----------------------------|
+                                               |  Прочие отметки            |
+    ------------------------------------------ |                            |
+                                               |                            |
+    ------------------------------------------ |----------------------------|
+                                               |                            |
+    ------------------------------------------ |----------------------------|
+                                               |                            |
+    ------------------------------------------ |----------------------------|
+                                               |                            |
+    ------------------------------------------ |----------------------------|
+                                               |                            |
+    -------------------------------------------------------------------------]
+    (
+      ("Владелец счета " + v_Owner):w,
+      v_Address:w,
+      v_Phone,
+      ("Банк " + "\"" +  v_BankName + "\""):w
+    );
+ [#](MkStr(12,1));  /* Переход к новой странице */
+ [
+    #########################################################################
+    -------------------------------------------------------------------------
+      (краткое наименование владельца счета)
+    N банковского счета #####################################################
+    -------------------------------------------------------------------------
+       Должность   |       Фамилия, имя,      | Образец |Срок полномочий лиц,
+                   |          отчество        | подписи |      временно
+                   |                          |         |пользующихся правом
+                   |                          |         |      подписи
+    -------------------------------------------------------------------------
+    #######|       |##########################|         |
+           |       |--------------------------|---------|
+           |       |                          |         |
+           |       |--------------------------|---------|
+           |       |                          |         |
+           |       |--------------------------|---------|
+           |       |                          |         |
+    -------------------------------------------------------------------------
+    вторая |       |                          |         |
+    подпись|       |--------------------------|---------|
+           |       |                          |         |
+           |       |--------------------------|---------|
+           |       |                          |         |
+           |       |--------------------------|---------|
+           |       |                          |         |
+    -------------------------------------------------------------------------
+    Дата           |####################################| Образец оттиска
+    заполнения     |                                    | печати
+    ----------------------------------------------------|
+    Подпись        |                                    |
+    клиента        |                                    |
+    -------------------------------------------------------------------------
+                                  |                                         |
+                                  |            Выданы денежные чеки         |
+    ------------------------------|                                         |
+    Место для удостоверительной   |-----------------------------------------|
+    надписи о свидетельствовании  | Дата | с N  | по N | Дата | с N  | по N |
+    подлинностей подписей         |------|------|------|------|------|------|
+                                  |      |      |      |      |      |      |
+                                  |------|------|------|------|------|------|
+                                  |      |      |      |      |      |      |
+                                  |------|------|------|------|------|------|
+                                  |      |      |      |      |      |      |
+                                  |------|------|------|------|------|------|
+                                  |      |      |      |      |      |      |
+                                  |------|------|------|------|------|------|
+                                  |      |      |      |      |      |      |
+    ------------------            |------|------|------|------|------|------|]
+    (
+      v_FIO,
+      Acc_Form(v_Account):f,
+      "первая подпись":w,
+      v_FIO_Sign:w,
+      v_DateSet
+    );
+end;
+```
+
+---
+
+## Пример 22: `TreatPrimaryAccsForStatic`
+
+**Источник:** `Mac/DEPOSITR/upldstat.mac`
+**Тип:** `macro`
+**Размер:** 50 строк
+
+```rsl
+macro TreatPrimaryAccsForStatic(BranchID, StaticAcc)
+
+  var
+    RecFound,
+    Pos,
+    NextPos,
+    SK_Dep = KeyNum(T_Dep, 5),
+    IsFirstLn = true,
+    Acc,
+    Rest,
+    StatStr;
+
+  ClearRecord(T_Dep);
+  T_Dep.FNCash = BranchID;
+  T_Dep.SvodAccount = StaticAcc;
+  RecFound = GetGE(T_Dep)
+    and (T_Dep.FNCash == BranchID)
+    and (T_Dep.SvodAccount == StaticAcc);
+  while(RecFound)
+    Pos = GetPos(T_Dep);
+    if(Next(T_Dep)
+      and (T_Dep.FNCash == BranchID)
+      and (T_Dep.SvodAccount == StaticAcc))
+      NextPos = GetPos(T_Dep);
+    else
+      NextPos = 0;
+    end;
+    GetDirect(T_Dep, Pos);
+    Acc = T_Dep.Account;
+    Rest = T_Dep.Sum_Rest;
+    if(IsFirstLn)
+      [--------------------------------------------------------------------];
+      [:         С ч е т           :      Остаток        :      Статус     ];
+      [--------------------------------------------------------------------];
+      IsFirstLn = false;
+    end;
+    TreatAccount;
+    if(TrnStat)
+      StatStr = "Нормально";
+    else
+      StatStr = "Ошибка";
+    end;
+    [ ########################### ##################### ############### ]
+    ( Acc_Form(Acc), Rest, StatStr );
+    if(NextPos != 0)
+      GetDirect(T_Dep, NextPos);
+    else
+      RecFound = False;
+    end;
+  end;
+```
+
+---
+
+## Пример 23: `ОтражениеКорректировки`
+
+**Источник:** `Mac/DLNG/VEKSEL/vscarry.mac`
+**Тип:** `macro`
+**Размер:** 22 строк
+
+```rsl
+MACRO ОтражениеКорректировки(S, fd, Дата)
+
+  var stat = 0;
+  var СчДебет, СчКредит, bnr = fd.GetBnr(), leg = fd.GetLeg();
+
+  if (S < $0)
+    if (not VS_GetAccountManual("+Корр, Свексель", fd, СчДебет, MC_OPENACC_CREATE, NATCUR, null, null, Дата))//Активный
+      stat = 1;
+    elif (not VS_GetAccountManual("+КОР_ПР_ЭПС, СВ", fd, СчКредит, MC_OPENACC_CREATE, NATCUR, null, null, Дата))//Пассивный
+      stat = 1;
+    elif (Проводка(СчДебет, СчКредит, Abs(S), String("Отражение отрицательной корректировки по ц/б сер. " + string(bnr.rec.BCSeries) + " N " + trim(bnr.rec.BCNumber)), 0, 0, NATCUR, NULL, NULL, Дата))
+      stat = 1;
+    end;
+  elif (S > $0)
+    if (not VS_GetAccountManual("-КОР_ПР_ЭПС, СВ", fd, СчДебет, MC_OPENACC_CREATE, NATCUR, null, null, Дата))//Активный
+      stat = 1;
+    elif (not VS_GetAccountManual("-Корр, Свексель", fd, СчКредит, MC_OPENACC_CREATE, NATCUR, null, null, Дата))//Пассивный
+      stat = 1;
+    elif (Проводка(СчДебет, СчКредит, S, String("Отражение положительной корректировки по ц/б сер. " + string(bnr.rec.BCSeries) + " N " + trim(bnr.rec.BCNumber)), 0, 0, NATCUR, NULL, NULL, Дата))
+      stat = 1;
+    end;
+  end;
+```
+
+---
+
+## Пример 24: `Sfr_GenAttr_ИдФайл`
+
+**Источник:** `Mac/Mbr/RuleMesDtlGet_FRS.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+macro Sfr_GenAttr_ИдФайл
+( wlmes
+
+) : string
+
+  var Attr : string = "";
+
+  var Num : string = GetRefByReg("PS\\СООБЩЕНИЯ СФР\\СООБСЧ_ОТКР_ЗАКР\\ИДФАЙЛ_РЕФЕРЕНС", true);
+  Attr = string( ПолучитьИдентификаторОтправителя(wlmes.Department), DateToStr_YYYYMMDD(GetSysDate()), Num );
+
+  return Attr;
+end;
+```
+
+---
+
+## Пример 25: `createReportForOneCell`
+
+**Источник:** `Mac/CELLS/rentrept_clnts.mac`
+**Тип:** `macro`
+**Размер:** 24 строк
+
+```rsl
+macro createReportForOneCell()  
+
+  ObjPrint.AddDoc("ДоговорАренды",
+    Номер_договора,
+    Город,
+    День_дог, Месяц_дог, Год_дог,
+    Инфо_по_заведующей,
+    Наименование_клиента, Наименование_клиента2,
+    Ячейка, 
+    Адрес_филиала,
+    Подразделение,
+    Срок_аренды, Срок_аренды_строкой,
+    string(Сумма_аренды_руб), string(Сумма_аренды_коп), Сумма_аренды_стр,
+    string(СуммаНДС_руб), string(СуммаНДС_коп), СуммаНДС_стр, 
+    string(Сумма_услуги_руб), string(Сумма_услуги_коп), Сумма_услуги_стр,
+    string(СуммаНДСУслуги_руб), string(СуммаНДСУслуги_коп), СуммаНДСУслуги_стр,
+    string(Сумма_техн_руб), string(Сумма_техн_коп), Сумма_техн_стр,
+    string(СуммаНДСТехн_руб), string(СуммаНДСТехн_коп), СуммаНДСТехн_стр,
+    Почтовый_адрес_банка, {Bank_INN}, Счет_банка, {MFO_Bank}, {CORAC_Bank}, Телефоны_банка,
+    Данные_клиента, Данные_клиента2
+  );
+
+  ObjPrint.CreateTemplateData();
+end;
+```
+
+---
+
+## Пример 26: `TraceBegin`
+
+**Источник:** `Mac/LC/lcedit.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+  macro TraceBegin(IsImport : bool, IsExpManual : bool, IsChng : bool, LcState : integer)
+    Bnk_ToRSTrace( "IsReview" + AttrName, "Begin", AttrName + ":" +
+      "  IsImport=" + string(IsImport) + 
+      ", IsExpManual=" + string(IsExpManual) + 
+      ", IsChng=" + string(IsChng) + 
+      ", LcState=" + LcState );
+  end;
+```
+
+---
+
+## Пример 27: `GetSQLDate_SK`
+
+**Источник:** `Mac/DLNG/SECUR/Replication/txrepl_func.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+MACRO GetSQLDate_SK( _date )
+   if ( _date != date(0,0,0) )
+      return string( "TO_DATE( '",_date,"', 'DD.MM.YYYY' )" );
+   else
+      return "TO_DATE('01-01-0001', 'DD-MM-YYYY')";
+   end;
+end;
+```
+
+---
+
+## Пример 28: `AddIdent`
+
+**Источник:** `Mac/Mbr/MesIdent_lib.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+  macro AddIdent(UIDType : string, UID : string, IsRelated : bool)
+    Bnk_ToRSTrace( "AddIdent", "Begin", "TMessageDupIdentificators.AddIdent/Begin" );
+
+    MesIdents[MesIdents.size] = TMesDupIdent(UIDType, UID, IsRelated);
+
+    Bnk_ToRSTrace( "AddIdent", "End", "TMessageDupIdentificators.AddIdent/End" );
+  end;
+```
+
+---
+
+## Пример 29: `hGetStrFlag`
+
+**Источник:** `Mac/Cb/rpchkaddress_lib.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+macro hGetStrFlag(StrFlag : string, hFlag : integer) : bool
+  var Flag = false;
+  if(substr(StrFlag, hFlag, 1) == "X")
+    Flag = true;
+  end;
+```
+
+---
+
+## Пример 30: `GenerateFileName`
+
+**Источник:** `Mac/DLNG/DV/dv_notify.mac`
+**Тип:** `macro`
+**Размер:** 10 строк
+
+```rsl
+macro GenerateFileName( RepDate, FIID, Client)
+  var name = "",
+      dd, mm, yyyy;
+
+  var Cl = IIF( Client > -1 , ПолучитьКодСубъекта(Client, PTCK_CONTR), "OUR");
+     DateSplit( RepDate, dd, mm, yyyy );
+     name = String(mm) + String(Mod(yyyy,10)) + String(FIID) + Cl;
+
+   return name;
+end;
+```
+
+---
+
+## Пример 31: `LocalAdapterReplaceMacro`
+
+**Источник:** `Mac/Cb/adaptLoc.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+  macro LocalAdapterReplaceMacro()
+    if(ValType(_adapter) != V_UNDEF)
+      _adapter.replace(); 
+    end;
+  end;
+```
+
+---
+
+## Пример 32: `GetResult`
+
+**Источник:** `Mac/BOOK/pfr_getres_service.mac`
+**Тип:** `macro`
+**Размер:** 19 строк
+
+```rsl
+macro GetResult(applpens) //; dpfr_applpens_dbt
+  stat = ERRORSending;
+  var i = 0;
+
+  var systemURL;
+  GetRegistryValue( PARM_RSCONNECT_URL, V_STRING, systemURL );
+
+  var senderId = getSenderId();
+
+  var requestHeader = RequestHeaderType();
+  requestHeader.reqId = SubStr(CreateGUID(), 2, 36);
+  requestHeader.senderId = senderId;
+
+  var requestData = GetRequestDataType();
+  if (strlen(applpens.rec.ObjectId) > 0)
+    requestData.ObjectID = applpens.rec.ObjectId; // заполняем ObjectId, т.к. requestData.InitReqId мы не храним
+  else
+    RunError("Не определен идентификатор объекта, созданного в АС RS-Connect, возможно заявление еще не отправлено");
+  end;
+```
+
+---
+
+## Пример 33: `Nname`
+
+**Источник:** `Mac/DEPOSITR/trn_lu_d.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+macro Nname( Str )
+  var i = Index( Str, " " );
+  var s = SubStr( Str, i + 1 );
+  return SubStr( s, 1, Index( s, " " ) - 1 );
+end;
+```
+
+---
+
+## Пример 34: `SfFormDocuments`
+
+**Источник:** `Mac/Cb/sfpaydoc.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+macro SfFormDocuments( sidebet, sicredit, sfcomiss, payDate, paySum, taxSum, FIID, SfComPD, IsIncluded, isNVPI,
+                       FacturaID, bilfDocArray:@TArray, objectType, objectBuf, ID_Operation, ID_Step )
+
+  var CalcNDS_Account:string, Calc_Account:string, NDSAccrual_Account:string;
+
+  var payAmount = $0;
+  var Ground:string;
+  var fiidCCY = "";
+
+  var payFIID = FIID;
+  if( sfcomiss.FIID_paySum != -1 )
+    payFIID = sfcomiss.FIID_paySum; 
+  end;
+```
+
+---
+
+## Пример 35: `AB_ConvertCurrency`
+
+**Источник:** `Mac/DLNG/UniLoader/ul_conv_alfabank.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+MACRO AB_ConvertCurrency(retVal_, _input_value, _inputDataObj, _DataObj, _Log)
+    retVal_ = UL_GetRealIDObject(UL_CURRENCY, substr(_input_value, 1, 3), 3, _Log);
+    SetParm(0, retVal_);
+    return 0;
+END;
+```
+
+---
+
+## Пример 36: `RQ_Print_Report`
+
+**Источник:** `Mac/Cb/bbcp_rep.mac`
+**Тип:** `macro`
+**Размер:** 144 строк
+
+```rsl
+MACRO RQ_Print_Report()
+
+  var i = 0;
+  var needKZ:bool = needUseKZpm();
+
+  RQ_Print_ReportDupl(r_pmdupaym.PaymentID, r_pmdurmpp.Number, r_pmdupaym.PayAmount, r_pmdupaym.ValueDate);
+[    Платежное поручение N ##########################
+     Сумма:   ############################
+     Дата валютирования:  ################
+]
+( r_pmrmprop.Number:l, r_pmpaym.PayAmount:l:f, r_pmpaym.ValueDate:l);
+             
+/* Ведомость расхождения печатается при соответствующей настройке */
+if( pr_rep )
+   Print_Head();
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_NUMBER, INRQ_PF_NUMBER ), 1 ) == " ") and (r_pmrmprop.Number != r_pmdurmpp.Number))
+      Print_SmallStr(r_pmrmprop.Number, r_pmdurmpp.Number, "Номер документа"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_DATE, INRQ_PF_DATE ), 1 ) == " ") and (r_pmrmprop.Date != r_pmdurmpp.Date))
+      Print_SmallStr(r_pmrmprop.Date, r_pmdurmpp.Date, "Дата (заполняемая клиентом)"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_KINDPAYMENT, INRQ_PF_KINDPAYMENT ), 1 ) == " ") and (r_pmrmprop.PaymentKind != r_pmdurmpp.PaymentKind))
+      Print_PaymentKind(r_pmrmprop.PaymentKind, r_pmdurmpp.PaymentKind); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_VALUEDATE, INRQ_PF_VALUEDATE ), 1 ) == " ") and (r_pmpaym.ValueDate != r_pmdupaym.ValueDate))
+      Print_SmallStr(r_pmpaym.ValueDate, r_pmdupaym.ValueDate, "Дата"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_INTO_BANK, INRQ_PF_INTO_BANK ), 1 ) == " ") and (r_pmpaym.PayerBankEnterDate != r_pmdupaym.PayerBankEnterDate))
+      Print_SmallStr(r_pmpaym.PayerBankEnterDate, r_pmdupaym.PayerBankEnterDate, "Поступ. в банк плат."); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_PSBCNUMBER, INRQ_PF_PSBCNUMBER ), 1 ) == " ") and (r_psinrq.PSBCNumber != r_psduinrq.PSBCNumber))
+      Print_SmallStr(r_psinrq.PSBCNumber, r_psduinrq.PSBCNumber, "Номер поруч. на продажу"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_PSBCDATE, INRQ_PF_PSBCDATE ), 1 ) == " ") and (r_psinrq.PSBCDate != r_psduinrq.PSBCDate))
+      Print_SmallStr(r_psinrq.PSBCDate, r_psduinrq.PSBCDate, "Дата поруч. на продажу"); i = i+1;
+   end;
+   if(((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_RNN_PAYER, INRQ_PF_INN_PAYER ), 1 ) == " ") or (SubStr( locktax, tax_fld_PayerINN, 1 ) == " ") or (SubStr( locktax, tax_fld_PayerKPP, 1 ) == " "))and
+      (r_pmrmprop.PayerINN != r_pmdurmpp.PayerINN))
+      Print_PayerINN(r_pmrmprop.PayerINN, r_pmdurmpp.PayerINN); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_PAYER, INRQ_PF_PAYER ), 1 ) == " ") and (r_pmrmprop.PayerName != r_pmdurmpp.PayerName))
+      Print_PayerName(r_pmrmprop.PayerName,r_pmdurmpp.PayerName); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_SUM, INRQ_PF_SUM ), 1 ) == " ") and (r_pmpaym.PayAmount != r_pmdupaym.PayAmount))
+      Print_Amount(r_pmpaym.PayAmount, r_pmdupaym.PayAmount, "Сумма"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_FI_CODE, INRQ_PF_FI_CODE ), 1 ) == " ") and (r_pmpaym.PayFIID != r_pmdupaym.PayFIID))
+      Print_SmallStr(r_pmpaym.PayFIID, r_pmdupaym.PayFIID, "Валюта счета плательщика"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_ACCOUNT_PAYER, INRQ_PF_ACCOUNT_PAYER ), 1 ) == " ") and (r_pmpaym.PayerAccount != r_pmdupaym.PayerAccount))
+      Print_SmallStr(r_pmpaym.PayerAccount, r_pmdupaym.PayerAccount, "Счет плательщика"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_BANK_RECEIVER, INRQ_PF_BANK_RECEIVER ), 1 ) == " ") and (r_pmrmprop.ReceiverBankName != r_pmdurmpp.ReceiverBankName))
+      Print_ReceiverBankName(r_pmrmprop.ReceiverBankName, r_pmdurmpp.ReceiverBankName); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_KINDCODE_RECEIVER, INRQ_PF_KINDCODE_RECEIVER ), 1 ) == " ") and (r_credit.CodeKind != r_ducredit.CodeKind))
+      Print_CodeKind(r_credit.CodeKind, r_ducredit.CodeKind); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_CODE_RECEIVER, INRQ_PF_CODE_RECEIVER ), 1 ) == " ") and (r_credit.BankCode != r_ducredit.BankCode))
+      Print_SmallStr(r_credit.BankCode, r_ducredit.BankCode, "Код банка получателя"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_CORRACC_RECEIVER, INRQ_PF_CORRACC_RECEIVER ), 1 ) == " ") and (r_pmrmprop.ReceiverCorrAccNostro != r_pmdurmpp.ReceiverCorrAccNostro))
+      Print_SmallStr(r_pmrmprop.ReceiverCorrAccNostro, r_pmdurmpp.ReceiverCorrAccNostro, "Корсчет банка получателя в РКЦ"); i = i+1;
+   end;
+   if(((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_INN_RECEIVER, INRQ_PF_INN_RECEIVER ), 1 ) == " ") or (SubStr( locktax, tax_fld_ReceiverINN, 1 ) == " ") or (SubStr( locktax, tax_fld_ReceiverKPP, 1 ) == " ")) and
+      (r_pmrmprop.ReceiverINN != r_pmdurmpp.ReceiverINN))
+      Print_ReceiverINN(r_pmrmprop.ReceiverINN, r_pmdurmpp.ReceiverINN); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_RECEIVER, INRQ_PF_RECEIVER ), 1 ) == " ") and (r_pmrmprop.ReceiverName != r_pmdurmpp.ReceiverName))
+      Print_ReceiverName(r_pmrmprop.ReceiverName, r_pmdurmpp.ReceiverName); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_ACCOUNT_RECEIVER, INRQ_PF_ACCOUNT_RECEIVER ), 1 ) == " ") and (r_pmpaym.ReceiverAccount != r_pmdupaym.ReceiverAccount))
+      Print_SmallStr(r_pmpaym.ReceiverAccount, r_pmdupaym.ReceiverAccount, "Счет получателя"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_GROUND, INRQ_PF_GROUND ), 1 ) == " ") and (r_pmrmprop.Ground != r_pmdurmpp.Ground))
+      RQ_Print_Cround(r_pmrmprop.Ground, r_pmdurmpp.Ground); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_SHIFR_OPER, INRQ_PF_SHIFR_OPER ), 1 ) == " ") and (r_pmrmprop.ShifrOper != r_pmdurmpp.ShifrOper))
+      Print_SmallStr(r_pmrmprop.ShifrOper, r_pmdurmpp.ShifrOper, "Шифр"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_PAY_DATE, INRQ_PF_PAY_DATE ), 1 ) == " ") and (r_pmrmprop.PayDate != r_pmdurmpp.PayDate))
+      Print_SmallStr(r_pmrmprop.PayDate, r_pmdurmpp.PayDate, "Срок платежа"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_PRIORITY, INRQ_PF_PRIORITY ), 1 ) == " ") and (r_pmrmprop.Priority != r_pmdurmpp.Priority))
+      Print_SmallStr(r_pmrmprop.Priority, r_pmdurmpp.Priority, "Очередность платежа"); i = i+1;
+   end;
+   if((SubStr( locked, IfThenElse( needKZ, INRQ_PF_KZ_NUMBERPACK, INRQ_PF_NUMBERPACK ), 1 ) == " ") and (r_pmpaym.NumberPack != r_pmdupaym.NumberPack))
+      Print_SmallStr(r_pmpaym.NumberPack, r_pmdupaym.NumberPack, "Номер пачки"); i = i+1;
+   end;
+
+   /* Всякие налоговые заморочки - кроме ИНН и КПП */
+   if(((SubStr( locked, INRQ_PF_AUTHSTAT, 1 ) == " ") or (SubStr( locktax, tax_fld_AuthorStatusCode, 1 ) == " ") ) and
+      (r_pmrmprop.TaxAuthorState != r_pmdurmpp.TaxAuthorState))
+      Print_SmallStr(r_pmrmprop.TaxAuthorState, r_pmdurmpp.TaxAuthorState, "Статус составителя"); i = i+1;
+   end;
+
+   if((SubStr( locktax, tax_fld_TaxCode, 1 ) == " ") and (r_pmrmprop.BttTICode != r_pmdurmpp.BttTICode))
+      Print_SmallStr(r_pmrmprop.BttTICode, r_pmdurmpp.BttTICode, "Код бюджетной классификации"); i = i+1;
+   end;
+
+   if((SubStr( locktax, tax_fld_OKATOCode, 1 ) == " ") and (r_pmrmprop.OKATOCode != r_pmdurmpp.OKATOCode))
+      Print_SmallStr(r_pmrmprop.OKATOCode, r_pmdurmpp.OKATOCode, "Код ОКАТО"); i = i+1;
+   end;
+
+   if((SubStr( locktax, tax_fld_GroundCode, 1 ) == " ") and (r_pmrmprop.TaxPmGround != r_pmdurmpp.TaxPmGround))
+      Print_SmallStr(r_pmrmprop.TaxPmGround, r_pmdurmpp.TaxPmGround, "Код основания документа"); i = i+1;
+   end;
+
+   if((SubStr( locktax, tax_fld_Period, 1 ) == " ") and (r_pmrmprop.TaxPmPeriod != r_pmdurmpp.TaxPmPeriod))
+      Print_SmallStr(r_pmrmprop.TaxPmPeriod, r_pmdurmpp.TaxPmPeriod, "Налоговый период"); i = i+1;
+   end;
+
+   if((SubStr( locktax, tax_fld_Number, 1 ) == " ") and (r_pmrmprop.TaxPmNumber != r_pmdurmpp.TaxPmNumber))
+      Print_SmallStr(r_pmrmprop.TaxPmNumber, r_pmdurmpp.TaxPmNumber, "Номер налогового документа"); i = i+1;
+   end;
+
+   if((SubStr( locktax, tax_fld_Date, 1 ) == " ") and (r_pmrmprop.TaxPmDate != r_pmdurmpp.TaxPmDate))
+      Print_SmallStr(r_pmrmprop.TaxPmDate, r_pmdurmpp.TaxPmDate, "Дата налогового документа"); i = i+1;
+   end;
+
+   if((SubStr( locktax, tax_fld_TypeCode, 1 ) == " ") and (r_pmrmprop.TaxPmType != r_pmdurmpp.TaxPmType))
+      Print_SmallStr(r_pmrmprop.TaxPmType, r_pmdurmpp.TaxPmType, "Код типа налогового платежа"); i = i+1;
+   end;
+
+  if( needKZ )
+    if( (SubStr( locked, INRQ_PF_KZ_KNP_Name, 1 ) == " ") AND (r_pmkz.groundcode != r_pmdupkz.groundcode) )
+      Print_SmallStr(getKNPName(r_pmkz.GroundCode), getKNPName(r_pmdupkz.GroundCode), "Код назначения платежа"); i = i+1;
+    end;
+    if( (SubStr( locked, INRQ_PF_KZ_PayerCode, 1 ) == " ") AND (r_pmkz.PayerCode != r_pmdupkz.PayerCode) )
+      Print_SmallStr(r_pmkz.PayerCode, r_pmdupkz.PayerCode, "Код отправителя денег"); i = i+1;
+    end;
+    if( (SubStr( locked, INRQ_PF_KZ_RecieverCode, 1 ) == " ") AND (r_pmkz.ReceiverCode != r_pmdupkz.ReceiverCode) )
+      Print_SmallStr(r_pmkz.ReceiverCode, r_pmdupkz.ReceiverCode, "Код бенефициара"); i = i+1;
+    end;
+    if( (SubStr( locked, INRQ_PF_KZ_COUNTRY_PAYER, 1 ) == " ") AND (r_pmkz.PayerCountry != r_pmdupkz.PayerCountry) )
+      Print_SmallStr(r_pmkz.PayerCountry, r_pmdupkz.PayerCountry, "Код страны отправителя"); i = i+1;
+    end;
+    if( (SubStr( locked, INRQ_PF_KZ_COUNTRY_RECEIVER, 1 ) == " ") AND (r_pmkz.ReceiverCountry != r_pmdupkz.ReceiverCountry) )
+      Print_SmallStr(r_pmkz.ReceiverCountry, r_pmdupkz.ReceiverCountry, "Код страны получателя"); i = i+1;
+    end; 
+    if((SubStr( locked, INRQ_PF_KZ_OPERATIONCODE, 1 ) == " ") and (r_pmkz.OperationCode != r_pmdupkz.OperationCode))
+      Print_SmallStr(r_pmkz.OperationCode, r_pmdupkz.OperationCode, "Код операции"); i = i+1;
+    end;
+  end;
+```
+
+---
+
+## Пример 37: `OpenUFile`
+
+**Источник:** `Mac/DEPOSITR/getdocs.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro OpenUFile( UDate )
+
+  var
+    Yy, Mm, Dd, fileName, i = 1, FileNo = 93;
+
+  DateSplit(UDate, Dd, Mm, Yy);
+  Yy = Yy - Int(Yy / 100) * 100;
+  fileName = String(Yy:2:0) + String(Mm:2:0) + String(Dd:2:0) + String(FileNo:2:0);
+  while(i <= StrLen(fileName))
+    if(SubStr(fileName, i, 1) == " ")
+      StrSet(fileName, i, "0");
+    end;
+    i = i + 1;
+  end;
+```
+
+---
+
+## Пример 38: `GetNextWord`
+
+**Источник:** `Mac/Cb/extp_recvfio.mac`
+**Тип:** `macro`
+**Размер:** 22 строк
+
+```rsl
+macro GetNextWord( Str, Pos, NextWord )
+    var len = strlen(Str), symb;
+    var ValidSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя";
+    var stat: bool;
+
+    NextWord = "";
+    stat = true;
+    while( (Pos <= len) and (stat) )
+        symb = substr(Str, Pos, 1);
+        if( index(ValidSymbols, symb) > 0 )
+            NextWord = NextWord + symb;
+        else
+            if( strlen(NextWord) > 0 )
+                stat = false;
+            end;
+        end;
+        Pos = Pos + 1;
+    end;
+         
+    SetParm(1,Pos);
+    SetParm(2,NextWord);
+end;
+```
+
+---
+
+## Пример 39: `AddNodeByInitHndlPartyID`
+
+**Источник:** `Mac/Mbr/swmx_hndl_lib.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+macro AddNodeByInitHndlPartyID
+( ParentNode : XMLMesDocument, // узел, в который будем добавлять подузел NewNode
+  NewNodeTypeName : string, // тип добавляемого узла (ddttype_dbt.t_ISOName)
+  NewNodeName : string,
+  PartyID : integer,
+  CorrID : integer
+)
+  var TypeID : integer = GetTypeIdByISOName(NewNodeTypeName, TRANSP_SWIFTMX);
+
+  var MacroFile : string, MacroProc : string;
+  var wlaction : TRecHandler = GetWlAction(OBJTYPE_DATATYPE, TypeID, ACTION_FRM_INIT, date());
+  if(wlaction != null)
+    MacroFile = wlaction.rec.MacroFile;
+    MacroProc = wlaction.rec.MacroProc;
+  end;
+```
+
+---
+
+## Пример 40: `Add_OrgId_PrvtId`
+
+**Источник:** `Mac/Mbr/nbrk_AddOrgIdPrvtId.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+macro Add_OrgId_PrvtId(OthrEditval : TRecHandler, FirstIndex : @integer) : bool
+  var ErrMsg : string = "";
+
+  var MenuArr : TArray;
+  var OthrParentISOName : string = GetDteditvalISOName(OthrEditval.rec.ParentID);
+  if(OthrParentISOName == "OrgId")
+    MenuArr = makeArray( OrgBIN, OrgResidency, OrgSector, OrgBoss, OrgBookkeeper );
+  elif(OthrParentISOName == "PrvtId")
+    MenuArr = makeArray( PrvtIIN, PrvtIDC, PrvtResidency, PrvtSector );
+  else
+    RunError("Параметр OthrEditval не является дочерним элементом блока OrgId или PrvtId");
+  end;
+```
+
+---

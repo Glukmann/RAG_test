@@ -1064,3 +1064,1447 @@ macro PrepMassExecuteStep()
 
 ---
 
+## Пример 16: `AddWhereForClientFld`
+
+**Источник:** `Mac/DLNG/NotifContrDeal_Form.mac`
+**Тип:** `macro`
+**Размер:** 19 строк
+
+```rsl
+MACRO AddWhereForClientFld( _date )
+  var AddWhere:String = "";
+
+  AddWhere = " EXISTS( SELECT attr.* " +
+             "           FROM dobjatcor_dbt attr " +
+             "          WHERE attr.t_ObjectType = " + string(OBJTYPE_PARTY) +
+             "            AND attr.t_GroupID    = 58 " + 
+             "            AND attr.t_Object     = LPAD(t.T_PARTYID, 10, '0') " +
+             "            AND (SELECT count(1) " +
+             "                   FROM DOBJATCOR_DBT at " +
+             "                  WHERE at.t_ObjectType = attr.t_ObjectType " +
+             "                    AND at.t_GroupID    = attr.t_GroupID " +
+             "                    AND at.t_Object     = attr.t_Object " +
+             "                    AND at.t_ValidFromDate <= " + GetSQLDate( _date ) +
+             "                 ) > 0 " +
+             "       ) ";
+
+  return AddWhere;
+END;
+```
+
+---
+
+## Пример 17: `GetFactDateForAccOpen`
+
+**Источник:** `Mac/Mbr/fnsaccmsg_lib.mac`
+**Тип:** `macro`
+**Размер:** 17 строк
+
+```rsl
+macro GetFactDateForAccOpen( buff ) : date
+
+  var rs = execSQLselectPrm( " select st.t_Fact_Date " 
+                             "   from doprstep_dbt st, "
+                             "        doproper_dbt opr "
+                             "  where opr.t_DocumentID = lpad(:DocID, 34, '0') "
+                             "    and opr.t_DocKind = :ACCOPEN_KIND "
+                             "    and st.t_Id_Operation = opr.t_Id_Operation "
+                             "    and st.t_IsExecute = chr(88) "
+                             "    and st.t_Kind_Action = 100 ", //REQOPENA_OPENACC
+                             SQLParam("DocID", buff.RequestID),
+                             SQLParam("ACCOPEN_KIND", PS_REQOPENA)
+                           );
+
+  if ( rs and rs.moveNext() )
+    return rs.value(0);
+  end;
+```
+
+---
+
+## Пример 18: `Charges7_pacs_AddXml`
+
+**Источник:** `Mac/Mbr/swmx_pacs_genmes.mac`
+**Тип:** `macro`
+**Размер:** 31 строк
+
+```rsl
+macro Charges7_pacs_AddXml
+( Node : XMLMesDocument, // parent node
+  NewNodeName : string,
+  ComissObj : TDataCharges7,
+  PaymentID : integer
+) : string // возвращает xml-строку для созданного узла
+
+  var NewNodeXmlStr : string = "";
+  var savePos : SavePositionInXmlDocument = SavePositionInXmlDocument(Node);
+
+  Node.AddChildNode(NewNodeName, "", true);
+
+  // node Amt
+  SWIFTMX_FillXmlDocByActiveCurrencyAndAmount(Node, "Amt", ComissObj.Amount, ComissObj.FIID );
+
+  // node Agt
+  var CorrID : integer = 0;
+  var rs = execSQLselectPrm
+    ( "Select cs.t_CorrID "
+      "  from dpmprop_dbt outprop, dcorschem_dbt cs "
+      " where outprop.t_PaymentID = :PaymentID "
+      "   and outprop.t_Group = " + PAYMENTS_GROUP_EXTERNAL +
+      "   and outprop.t_IsSender = chr(0) "
+      "   and cs.t_Number = outprop.t_Corschem "
+      "   and cs.t_FIID = outprop.t_PayFIID "
+      "   and cs.t_FI_Kind = " + FIKIND_CURRENCY,
+      SQLParam("PaymentID", PaymentID)
+    );
+  if(rs.moveNext())
+    CorrID = rs.value("t_CorrID");
+  end;
+```
+
+---
+
+## Пример 19: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/VA/vadlrsrv.mac`
+**Тип:** `macro`
+**Размер:** 133 строк
+
+```rsl
+MACRO ExecuteStep(Buffer, FirstDoc)
+var AttrID = 0, ReserveKind = 0, fd,
+    stat = 0, ErrMsg = "", СуммаСделки = $0,
+    f_overdue = false, // флаг переноса на просрочку
+    have_reslnk = true,
+    DataSet,
+    reslnk = TBfile("dlreslnk.dbt", "W", 0),
+    FstBai = TBfile("pmpaym.dbt"),  /* первый платеж по активу сделки */
+    FstCai = TBfile("pmpaym.dbt");  /* первый платеж по контрактиву сделки */
+var Rold = 0, ResLnkId = 0, КатегКачества = -1, ПроцРезерва = -1;
+
+    SetBuff( tick, FirstDoc );
+
+    OprDate = OprServDoc.ValueDate;
+
+    // всё основные проверки отрабатывают в VA_SvOpFilter
+
+    if(not VA_Get1stPlanPaym(tick.BofficeKind, tick.DealID, BAi, FstBai))
+       return SayDlReserveError( tick, 1, "Не найден платеж по базовому активу сделки" );
+    elif(not VA_Get1stPlanPaym(tick.BofficeKind, tick.DealID, CAi, FstCai))
+       return SayDlReserveError( tick, 1, "Не найден платеж по контрактиву сделки" );
+    end;
+
+     // 1. Определяем необходимость создания и вид резерва.
+     if(VA_IsBuy(tick.DealType))    // покупка
+        ReserveKind = RVKIND_PAYM;
+        if(FstBai.rec.PaymStatus == PM_OVERDUE)
+            f_overdue = true;
+        end;
+     elif(VA_IsSale(tick.DealType))   // продажа
+        ReserveKind = RVKIND_PAYM;
+        if(FstCai.rec.PaymStatus == PM_OVERDUE)
+           f_overdue = true;
+        end;
+     else
+        return stat; // мену не учитываем
+     end;
+
+     stat = VA_GetReserveParamDeal(tick, OprDate, 0, @КатегКачества, @ПроцРезерва, @ResLnkId, @ErrMsg);
+     if(stat != 0)
+        if(ErrMsg != "")
+           SayDlReserveError(tick, stat, ErrMsg);
+        end;
+        return stat;
+     end;
+
+     // 3. Рассчитывается новая сумма резерва Rnew - в валюте расчетов сделки
+     if(ReserveKind == RVKIND_PAYM)
+        stat = VA_CalcNewReserveDeal(tick, ПроцРезерва, FstCai.rec.PayFIID, OprDate, @reserve_sum, @ErrMsg);
+     end;
+     if(stat != 0)
+        if(ErrMsg != "")
+           SayDlReserveError(tick, stat, ErrMsg);
+        end;
+        return stat;
+     end;
+
+     // 5. Определяется Rold
+     DataSet = TRsbDataSet("SELECT t_ReserveAmount " +
+        " FROM ddlreslnk_dbt " +
+        " WHERE t_Type = 1 AND t_ParentID = " + tick.DealID + " AND t_ChildID > -1 "
+          " AND t_LnkDate <= to_date('" + OprDate + "', 'DD.MM.YYYY')" +
+        " ORDER BY t_Id DESC ");
+     if(DataSet.MoveNext())
+        Rold = DataSet.ReserveAmount;
+     end;
+
+     // 6. Определяется сумма корректировки резерва
+     delta = reserve_sum - Rold;
+     if(delta == 0)
+        return stat;
+     end;
+
+     // 7/10. Обновление/вставка связи со сделкой
+     reslnk.KeyNum = 0;
+     reslnk.clear();
+     reslnk.rec.Id = ResLnkId;
+     if(not reslnk.GetEQ)
+         have_reslnk = false;
+     end;
+
+     reslnk.rec.ReserveKind = ReserveKind;       // Вид резерва
+     reslnk.rec.ReserveAmount = reserve_sum;     // Сумма резерва
+//     reslnk.rec.ReserveDate = OprDate;           // Дата расчета резерва
+
+     if(have_reslnk AND (reslnk.rec.ChildID == -1) AND //!!!
+             (КатегКачества == reslnk.rec.QualityCategory) AND
+             (ПроцРезерва == reslnk.rec.ReservePercent))
+        reslnk.rec.ChildID = OprServDoc.Id;
+        VA_ChangeDLRESLNK(reslnk.rec.Id, reslnk.rec.ChildID, reslnk.rec.ReserveKind, reslnk.rec.ReserveAmount, OprDate);
+     else
+        reslnk.rec.Id = 0;
+        reslnk.rec.ParentID         = tick.DealID;
+        reslnk.rec.ChildID          = OprServDoc.Id;
+        reslnk.rec.Type             = RSRV_TYPE_VADEAL;
+        reslnk.rec.LnkDate          = OprDate;
+        reslnk.rec.QualityCategory  = КатегКачества;
+        reslnk.rec.ReservePercent   = ПроцРезерва;
+        reslnk.rec.ReserveDate      = OprDate;            // Дата расчета резерва
+        VA_InsertDLRESLNK(reslnk);
+     end;
+
+     fd = VATickFD(tick);
+     // 8. Проводка по списанию резерва
+     if(reserve_sum == 0)
+        if(Rold > 0)
+           stat = СписРезерваПоСделке(fd, Rold, OprDate, @ErrMsg);
+        end;
+        if(stat != 0)
+            if(ErrMsg != "")
+               SayDlReserveError(tick, stat, ErrMsg);
+            end;
+        end;
+     else // (reserve_sum != 0)
+     // 9. Проводки по изменению
+        if(f_overdue == true)
+           if(Rold > 0)
+              stat = СписРезерваПоСделке(fd, Rold, OprDate, @ErrMsg);
+           end;
+           if(stat != 0)
+              if(ErrMsg != "")
+                 SayDlReserveError(tick, stat, ErrMsg);
+              end;
+              return stat;
+           end;
+           stat = ФормРезерва(fd, Abs(reserve_sum), FIROLE_DEALS_OVERDUE);
+        else
+           stat = ФормРезерва(fd, delta, FIROLE_DEALS_TERMREQ);
+        end;
+     end;
+
+     return stat;
+END;
+```
+
+---
+
+## Пример 20: `GetNRCountryForParty`
+
+**Источник:** `Mac/DEPOSITR/retoprce.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro GetNRCountryForParty ( codeClient )
+
+  var cmd, rs;
+  var nrCountry = "";
+
+  cmd = RsdCommand ( "select t_nrcountry from dparty_dbt where t_partyid = ?" );
+                     
+  rs = RsdRecordset( cmd );
+  cmd.addParam( "partyid", RSDBP_IN, codeClient ); 
+  cmd.execute;
+  
+  if ( rs.moveNext( ) )
+    nrCountry = rs.value( "t_nrcountry" );
+  end;
+```
+
+---
+
+## Пример 21: `IsClaimByOperStep`
+
+**Источник:** `Mac/Cb/cbsttls.mac`
+**Тип:** `macro`
+**Размер:** 16 строк
+
+```rsl
+macro IsClaimByOperStep(ID_Operation:integer)
+
+  var params:TArray;
+  var rs:object;
+  var select = "SELECT 1 "+
+               "FROM dual "+
+               "WHERE EXISTS( "+
+                  "SELECT 1 "+
+                  "FROM doprdocs_dbt opd "+
+                  "WHERE opd.t_id_operation = :ID_Operation "+
+                  "AND opd.t_dockind = 976) "/*DOCKIND_ACCLMCNG*/;
+  params = makeArray( SQLParam("ID_Operation", ID_Operation));
+  rs = execSQLselect( select, params, FALSE );
+  if(rs and rs.moveNext())
+    return true;  
+  end;
+```
+
+---
+
+## Пример 22: `Блок`
+
+**Источник:** `Mac/DLNG/dlgenagrsc.mac`
+**Тип:** `block`
+**Размер:** 13 строк
+
+```rsl
+/* Макрофункция инициализации нового актива 
+   необходимо заполнить структуру "Документ"
+   возвращаемое значение
+   0 - ошибок не было
+   1 - была ошибка
+*/
+private macro Связанные_сделки()  
+  var res = 0;
+  var querySql, query;
+  var GenAgrId = СтарыйДокумент.rec.GenAgrId;
+  querySql = "SELECT COUNT(*) AS t_cnt FROM DV_ALLDEAL deals, DDL_GENAGR_DBT genagr"
+            +" WHERE genagr.T_GENAGRID = deals.T_GENAGRID"
+            +" AND   genagr.T_GENAGRID = ? ";
+```
+
+---
+
+## Пример 23: `GetChgAvrCount`
+
+**Источник:** `Mac/DLNG/SECUR/ws_chgavr.mac`
+**Тип:** `macro`
+**Размер:** 23 строк
+
+```rsl
+macro GetChgAvrCount(
+  FilterItems//:TArray of FilterCondItem // Массив элементов фильтра скроллинга
+):Integer
+
+  var result:integer = 0;
+  var stat:integer = -1;
+  var strAddWhere:string = "";
+
+  var query =
+     " SELECT COUNT(dl_comm.t_documentId) C "
+     + " FROM ddl_comm_dbt dl_comm, "
+          + " davrkinds_dbt avrkinds, "
+          + " dfininstr_dbt fininstr, " 
+          + " dparty_dbt party "
+     + " WHERE dl_comm.t_dockind = " + string(DL_CHGAVRNOM/*139*/)
+     +  " AND fininstr.t_FIID = dl_comm.t_FIID "
+     +  " AND avrkinds.t_FI_Kind = " + string(FIKIND_AVOIRISS/*2*/)
+     +  " AND avrkinds.t_AvoirKind = fininstr.t_AvoirKind AND party.t_PartyID=fininstr.t_Issuer";
+
+  strAddWhere = GetChgAvrAddWhereCondition( FilterItems );
+  if( strAddWhere != "" )
+     query = query + " AND " + strAddWhere;
+  end;
+```
+
+---
+
+## Пример 24: `Проверить_ГенСоглашение`
+
+**Источник:** `Mac/DLNG/dlgenagr.mac`
+**Тип:** `macro`
+**Размер:** 89 строк
+
+```rsl
+MACRO Проверить_ГенСоглашение (Режим)
+    var stat = 0, rs = NULL, ObjType = NULL,
+        sqlstr = "";
+
+    if (Режим == DL_MAC_INIT)    
+        ObjType = GetObjType(ГенСоглашение.DocKind);
+
+        if (not DL_GenRefByTypeDoc(ObjType, ГенСоглашение.Code))
+            msgbox("Ошибка при генерации номера генерального соглашения");
+            stat = 1;
+        end;
+
+        cacheGenAgrCode = ГенСоглашение.Code;
+        isRetRef        = true;
+    elif (Режим == DL_MAC_DEINIT)    
+        if (isRetRef)
+            ObjType = GetObjType(ГенСоглашение.DocKind);
+            DL_RestoreRefByTypeDoc(ObjType, cacheGenAgrCode);
+        end;
+    elif (Режим == DL_MAC_USER)    
+        ФункцияПользователя_ГенСоглашение();
+    elif ((Режим == DL_MAC_INSERT)or(Режим == DL_MAC_UPDATE))
+        if (ГенСоглашение.Code == "")
+            msgbox("Не задан номер ГС");
+            return 1;
+        end;
+
+        sqlstr = "select Count(1)as cnt from ddl_genagr_dbt where t_Code = '" + ГенСоглашение.Code + 
+                  "' and t_DocKind = " + ГенСоглашение.DocKind + " and t_GenAgrID <> " + ГенСоглашение.GenAgrID;
+        rs = TRsbDataSet(sqlstr);      
+        rs.MoveNext();
+        if (rs.CNT > 0)
+             msgbox("Ген. соглашение с таким номером уже введено");
+             return 1;
+        end;   
+
+        if (ГенСоглашение.Start == date(0,0,0))
+            msgbox("Не задана дата начала");
+            return 1;
+        end;
+
+        if (ГенСоглашение.Duration == 0)
+            msgbox("Срок ГС равен 0");
+            return 1;
+        end;
+
+        if ((ГенСоглашение.PartyID == -1) and (ГенСоглашение.PartyGroup == 0))
+            msgbox("Необходимо задать контрагента или группу контрагентов");
+            return 1;
+        end;
+    elif (Режим == DL_MAC_DELETE)
+        // 0 - проверка пошла успешно. не 0 - ошибка (ругаемся сами)
+        if (ГенСоглашение.DocKind == 4610) // КО
+            rs = TRsbDataSet("select count(1) as cnt from ddl_tick_dbt tick where tick.t_BOfficeKind = 100" +
+                             " and tick.t_GenAgrID = " + ГенСоглашение.GenAgrID);
+        elif (ГенСоглашение.DocKind == 4611) // МБК
+            rs = TRsbDataSet("select count(1) as cnt from ddl_tick_dbt tick where tick.t_BOfficeKind = 102" +
+                             " and tick.t_GenAgrID = " + ГенСоглашение.GenAgrID);
+        elif (ГенСоглашение.DocKind == DL_GENAGRDVDOC) // ПИ
+           rs = TRsbDataSet(" select count(1) as cnt " +
+                            " from ( select deal.t_GenAgrID from ddvdeal_dbt deal where deal.t_GenAgrID = " + String(ГенСоглашение.GenAgrID) +
+                            "        union " +
+                            "        select ndeal.t_GenAgrID from ddvndeal_dbt ndeal where ndeal.t_GenAgrID = " + String(ГенСоглашение.GenAgrID) + " )");
+        end;
+
+        rs.MoveNext();
+        if (rs.cnt > 0)
+            msgbox("Удаление невозможно! Есть привязанные сделки");
+            return 1;
+        end;
+    elif (Режим == DL_MAC_COMPLETE)
+        // при вставке, если номер в кэше и документе совпадают, то откатывать референс не надо
+        if (cacheGenAgrCode == ГенСоглашение.Code)
+            isRetRef = false;
+        end;
+    elif (Режим == DL_MAC_NOTCOMPLETE)    
+        // сообщение придет, когда мы в транзакции вставки или редактирования
+        // возвращаемое значение не влияет
+    elif (Режим == DL_MAC_CREATEOP)    
+        // 0 - проверка пошла успешно. не 0 - ошибка (ругаемся сами)
+    elif (Режим == DL_MAC_DELETEOP)    
+        // 0 - проверка пошла успешно. не 0 - ошибка (ругаемся сами)
+    elif (Режим == DL_MAC_MASSACTION)    
+        // 1 раз приходит при вызове групповых действий
+        // 2 раз - при завершении групповых действий
+    end;
+
+    return stat;
+END;
+```
+
+---
+
+## Пример 25: `CheckTYPEACCOUNT`
+
+**Источник:** `Mac/DLNG/FOREX/fxlb.mac`
+**Тип:** `macro`
+**Размер:** 10 строк
+
+```rsl
+MACRO CheckTYPEACCOUNT(Account, symb)
+    var ds;
+
+    ds = TRsbDataSet("select * from daccount_dbt where (t_account = '" + Account + "')and(t_type_account like '%А%')");
+    if (not ds.MoveNext())
+        return false;
+    end;
+
+    return true;
+END;
+```
+
+---
+
+## Пример 26: `Операционист`
+
+**Источник:** `Mac/DLNG/SECUR/ReportMoveBasketREPO_Report.mac`
+**Тип:** `macro`
+**Размер:** 11 строк
+
+```rsl
+  MACRO Операционист()
+    var vRS = TRsbDataSet("SELECT person.t_Name " +
+                         "  FROM dperson_dbt person " +
+                         " WHERE person.t_oper = " + string({oper})
+                        );
+
+    if( vRS.MoveNext() )
+      return vRS.Name;
+    end;
+    return "";
+  END;
+```
+
+---
+
+## Пример 27: `BnkFSSP_GetInternalKeyDocDate`
+
+**Источник:** `Mac/Cb/pm_fssp.mac`
+**Тип:** `macro`
+**Размер:** 18 строк
+
+```rsl
+macro BnkFSSP_GetInternalKeyDocDate
+( DocFSSPID : integer, 
+  InternalKey : @string, 
+  DocDate : @date
+)
+  var rs = execSQLselectPrm
+    ( "Select t_InternalKey, t_DocDate "
+      "  from dfssprequire_dbt "
+      " where t_ID = :DocFSSPID ",
+      SQLParam("DocFSSPID", DocFSSPID)
+    );
+
+  if(rs.moveNext())
+    InternalKey = rs.value("t_InternalKey");
+    DocDate = rs.value("t_DocDate");
+  else
+    RunError("Не найдена запись группового требования ИД=" + DocFSSPID);
+  end;
+```
+
+---
+
+## Пример 28: `Dcoup`
+
+**Источник:** `Mac/DLNG/SECUR/OverSecReg_Report.mac`
+**Тип:** `macro`
+**Размер:** 30 строк
+
+```rsl
+  MACRO Dcoup():DATE //дата погашения купона, который гасится первым в период между <DDB>+1 и <H0.4> включительно
+     if( m_Dcoup == null )
+        m_Dcoup = date(0,0,0);
+
+        if( FI_AvrKindsEQ( FIKIND_AVOIRISS, AVOIRISSKIND_BOND, m_RS.AvoirKind ) )
+
+           VAR sql2   = RSDCommand( " SELECT t_DrawingDate " +
+                                    "   FROM dfiwarnts_dbt " +
+                                    "  WHERE t_FIID         =  ? AND " +
+                                    "        t_IsPartial   != 'X' AND " +
+                                    "        t_DrawingDate >=  ? AND " +
+                                    "        t_DrawingDate <=  ? " +
+                                    " ORDER BY t_DrawingDate ASC "
+                                  );
+          
+           sql2.addParam( "", RSDBP_IN, m_RS.t_FIID );
+           sql2.addParam( "", RSDBP_IN, this.DDB()+1 );
+           sql2.addParam( "", RSDBP_IN, this.H0_4() );
+           sql2.execute();
+          
+           VAR DataSet   = TRsbDataSet(sql2);
+           if( DataSet.MoveNext() )
+              m_Dcoup = SQL_ConvTypeDate( DataSet.t_DrawingDate );
+           end;
+
+        end;
+     end;
+
+     return m_Dcoup;
+  END;
+```
+
+---
+
+## Пример 29: `CreateOprKindFromAppServ`
+
+**Источник:** `Mac/Cb/ws_oprkoper.mac`
+**Тип:** `macro`
+**Размер:** 17 строк
+
+```rsl
+macro CreateOprKindFromAppServ(KindOperation)
+  var OprKindItem : TWsOprkoper = TWsOprkoper();
+
+  var cmd : RsdCommand, dataSet;
+
+  cmd.cmdText = "select t_name from doprkoper_dbt WHERE t_kind_operation = ?";
+
+  cmd.AddParam("", RSDBP_IN,  KindOperation);
+
+  cmd.execute();
+
+  dataSet = RsdRecordset(cmd);
+
+  if(dataSet.moveNext())
+    OprKindItem.Name          = dataSet.value(0);
+    OprKindItem.KindOperation = KindOperation;
+  end;
+```
+
+---
+
+## Пример 30: `SelectPacketNum`
+
+**Источник:** `Mac/Cb/ws_masptdub.mac`
+**Тип:** `macro`
+**Размер:** 126 строк
+
+```rsl
+macro SelectPacketNum(taskID, execID, ConvTypeID, PacketSize, CheckParm)
+  var cmd, cmd2,cmdS, rs, rs2;
+  var sqlString;
+  var PacketNum = 0;
+  var PackID = 0;
+  var PrevPackID = 0; 
+
+
+  var PacketNumInst = 0; 
+  var PacketNumPersn = 0;
+  CreatePacketPartyWith(taskID, execID, ConvTypeID, CheckParm, @PacketNumInst, @PacketNumPersn );
+
+  var cnvdocCache = RsbSQLInsert("cnvdoc.dbt");
+
+  var LegalForm = PTLEGF_INST;
+  var PacketSizePartyFrom = 1;
+  var PacketSizePartyTo   = PacketNumInst;
+
+
+  while(LegalForm <= PTLEGF_PERSN)
+    
+    cmd = RsdCommand();
+    cmdS = RsdCommand();
+
+    cmd.NullConversion = true;
+    cmdS.NullConversion = true;
+
+    
+    if((PacketSizePartyFrom <= PacketSizePartyTo) AND (PacketSizePartyTo != 0) )
+      var strFrom = " FROM dparty_dbt party "; //  ", dpartyown_dbt partyown"
+      var strWhere =  " party.t_Locked <> 'X' and party.t_LegalForm = " + LegalForm +
+                      " and party.t_IsProbDoubler <> 'X' and party.t_IsDoubler <> 'X' ";
+
+      var StrDepList = GetDepartmentsStrList();
+
+      if(CheckParm.FromClientDep)
+        strWhere = strWhere + " AND EXISTS ( SELECT 1 ";
+        strWhere = strWhere +  "  from dptsvdp_dbt ptsvdp ";
+        strWhere = strWhere +  " where ptsvdp.t_PartyID = party.t_PartyID ";
+        strWhere = strWhere +  "   and rownum <= 1 "; 
+        strWhere = strWhere +  "   and ptsvdp.t_PartyKind = 1 ";  // PTK_CLIENT
+        strWhere = strWhere +  "   and ptsvdp.t_Department in ( ";
+
+        if(CheckParm.FromClientAllSubDep)
+          strWhere = strWhere +  StrDepList;
+        else
+          strWhere = strWhere +  string({OperDprtNode});
+        end;
+
+        strWhere = strWhere +  " ) )";
+      end;
+
+      var  sqlCount = "SELECT COUNT(DISTINCT(party.t_PartyID)) as CountRec ";
+      sqlCount = sqlCount + strFrom;
+
+      if(strlen(strWhere) > 0)
+        sqlCount = sqlCount + " WHERE " ;
+        sqlCount = sqlCount + strWhere;
+      end;
+
+      cmd.CmdText = sqlCount;
+
+      rs = RsdRecordset(cmd);
+
+      var CountRec = 0;
+      if( rs.moveNext() )
+        CountRec = rs.value("CountRec");
+      end;
+
+      if( CountRec > 0 )
+        sqlString = "SELECT DISTINCT party.t_PartyID AS PartyID ";
+        sqlString = sqlString + strFrom;
+
+        if(strlen(strWhere) > 0)
+          sqlString = sqlString + " WHERE " ;
+          sqlString = sqlString + strWhere;
+        end;
+
+        sqlString = sqlString + " ORDER BY PartyID ";
+
+        cmdS.CmdText = sqlString;
+        rs2 = RsdRecordset(cmdS);
+
+        var RowNum = 1;
+        var PackTmp = 1; // используется только для вставки пачки
+        while( rs2.moveNext() )
+          var PartyID = rs2.value("PartyID");
+
+          var cnvdoc = TRecHandler("cnvdoc.dbt");
+          ClearRecord( cnvdoc );
+
+          cnvdoc.rec.TaskID     = taskID; 
+          cnvdoc.rec.ExecID     = execID; 
+          cnvdoc.rec.ConvTypeID = ConvTypeID;
+          cnvdoc.rec.PackID     = 0; 
+          cnvdoc.rec.ObjectType = 0;
+          cnvdoc.rec.ObjectID   = PartyID;
+          
+          cnvdocCache.AddRecord( cnvdoc );
+
+          if(RowNum > (PackTmp * PacketSize))
+            PrevPackID = PackTmp;
+
+            cnvdocCache.Insert();
+            cnvdocCache = RsbSQLInsert("cnvdoc.dbt");
+            CopyCnvDoc(taskID, execID, ConvTypeID, @PackID, PacketSizePartyFrom, PacketSizePartyTo); 
+           
+            PackTmp = PackTmp + 1; 
+          end;
+          RowNum = RowNum + 1;
+        end;
+
+        cnvdocCache.Insert();
+        cnvdocCache = RsbSQLInsert("cnvdoc.dbt");
+        CopyCnvDoc(taskID, execID, ConvTypeID, @PackID, PacketSizePartyFrom, PacketSizePartyTo);
+     end;
+    end;
+
+    PacketSizePartyFrom = PacketNumInst+1;            
+    PacketSizePartyTo   = PacketNumPersn;
+
+    PacketNum = PackID;
+
+    PackID = PackID + 1; // ЮЛ и ФЛ помещаем в разные пачки. 
+    LegalForm = LegalForm + 1;
+  end;
+```
+
+---
+
+## Пример 31: `ПолучитьПоручения`
+
+**Источник:** `Mac/DLNG/DV/dv_journl.mac`
+**Тип:** `macro`
+**Размер:** 57 строк
+
+```rsl
+macro ПолучитьПоручения( Client, SfContr )
+  var sqlQueryOrder = "", 
+      sqlQueryCarry = "";
+
+  sqlQueryOrder = " SELECT 1 isOrder," +
+                  "        ( SELECT Party.T_NAME FROM dparty_dbt Party WHERE Party.T_PARTYID = DVDeal.T_CLIENT ) ClientName," +
+                  "        ( SELECT SfContr.T_NUMBER FROM dsfcontr_dbt SfContr WHERE SfContr.T_ID = DVPos.T_CLIENTCONTR ) SfContrName," +
+                  "        ( SELECT SfContr.T_DATEBEGIN FROM dsfcontr_dbt SfContr WHERE SfContr.T_ID = DVPos.T_CLIENTCONTR ) SfContrDate," +
+                  "        DVDeal.T_KIND OrderKind," +
+                  "        DVDeal.T_POSITION POSITION," +
+                  "        SpGround.T_REGISTRDATE OrderDate," +
+                  "        SpGround.T_REGISTRTIME OrderTime," +
+                  "        SpGround.T_XLD OrderNum," +
+                  "        ( SELECT Person.T_NAME" +
+                  "            FROM dperson_dbt Person" +
+                  "           WHERE Person.T_Oper = DVDeal.T_Oper ) ProxyAgent " +
+                  "   FROM ddvdeal_dbt DVDeal, ddvfipos_dbt DVPos, dfininstr_dbt ContrFI, dfideriv_dbt ContrDV, dspgrdoc_dbt SpGrDoc, dspground_dbt SpGround" +
+                  "  WHERE (DVDeal.T_State = 1 or DVDeal.T_State = 2) and " +
+                  "        ContrFI.T_FIID = DVDeal.T_FIID and " +
+                  "        ContrDV.T_FIID = DVDeal.T_FIID and" +
+                  "        DVPos.T_FIID = DVDeal.T_FIID and " +
+                  "        DVPos.T_DEPARTMENT = DVDeal.T_DEPARTMENT and " +
+                  "        DVPos.T_CLIENT = DVDeal.T_CLIENT and " +
+                  "        DVPos.T_BROKER = DVDeal.T_BROKER and " + 
+                  "        SpGrDoc.T_SOURCEDOCKIND = 192 and" +
+                  "        SpGrDoc.T_SOURCEDOCID = DVDeal.T_ID and " +
+                  "        SpGround.T_SPGROUNDID = SpGrDoc.T_SPGROUNDID and " +
+                  "        SpGround.T_KIND = 251 " +
+                  /*условия по датам*/
+                  "        and SpGround.T_RegistrDate >= " + GetSQLDate( DateStart ) +
+                  "        and SpGround.T_RegistrDate <= " + GetSQLDate( DateEnd );
+
+   if( Client and ( Client != UNDF ) )
+       sqlQueryOrder = sqlQueryOrder + " and DVDeal.T_CLIENT = " + String( Client );
+   end;
+
+   if( SfContr and ( SfContr != UNDF ) )
+       sqlQueryOrder = sqlQueryOrder + " and DVPos.T_CLIENTCONTR = " + String( SfContr );
+   end;
+
+   if( IsMarket or IsRecept ) 
+     sqlQueryCarry = FormQuery( Client, SfContr );
+   end;
+
+   if( IsMarket or IsRecept ) 
+     sqlQueryOrder = "( " + sqlQueryOrder  + " ) union all " + 
+                     "( " + sqlQueryCarry + " )";
+   end;
+
+   sqlQueryOrder = sqlQueryOrder +
+                   " ORDER BY OrderDate, OrderTime, SfContrName, ClientName, SfContrDate, OrderKind;";
+
+   DV_Orders = TRsbDataSet( sqlQueryOrder, RSDVAL_CLIENT, RSDVAL_STATIC );
+   DV_Orders.MoveLast();
+   return DV_Orders.GetRecCount();
+return 0;
+end;
+```
+
+---
+
+## Пример 32: `ProcessInNotifications`
+
+**Источник:** `Mac/Mbr/ufInNtf_Proc.mac`
+**Тип:** `macro`
+**Размер:** 44 строк
+
+```rsl
+macro ProcessInNotifications
+( DepList : string,
+  DateFlag : string
+)
+  var Report : TUfInNtfReport = TUfInNtfReport();
+  var query : string =
+      "SELECT wlreq.t_ReqID " +
+      " FROM dwlreq_dbt wlreq," +
+      " dwlmeslnk_dbt wlmeslnk," +
+      " dwlmes_dbt wlmes," +
+      " dwlmesrls_dbt wlmesrls," +
+      " dwlmesfrm_dbt wlmesfrm," +
+      " dwladdfld_dbt wladdfld," +
+      " ddp_dep_dbt dep," +
+      " dwlsess_dbt wlsess " +
+      " WHERE     Wlreq.t_Kind = " + MESKIND_ANSWER +
+      " AND Wlreq.t_State = " + WLD_STATUS_REQ_RECEIV +
+      " AND Wlreq.t_Direct = 'X'" +
+      " AND Wlreq.t_ReqID = wlmeslnk.t_ObjID" +
+      " AND Wlmeslnk.t_ObjKind = " + OBJTYPE_REQ +
+      " AND Wlmeslnk.t_MesID = wlmes.t_MesID"
+      " AND Wlmes.t_RlsFormID = wlmesrls.t_RlsFormID"
+      " AND Wlmesrls.t_FormID = wlmesfrm.t_FormID"
+      " AND Wlmesfrm.t_Name = 'ED244'" +
+      " AND Wladdfld.t_ObjectID = wlreq.t_ReqID " +
+      " AND Wladdfld.t_Number = 'RequestCode'" +
+      " AND Wladdfld.t_Value = '00' " +
+      " AND Wlreq.t_Queries LIKE " +
+      "        '%/ОТ' || '" + UfNtfCar_GetAnswerCodeSuccess + "'"
+      "        || '/%'" + 
+      " AND Wlreq.t_RecipientID = dep.t_PartyID" + 
+      GetDepCondition(DepList) +
+      " AND Wlmes.t_SessionId = wlsess.t_SessionID " +
+      GetDateCondition(DateFlag); 
+
+  var rs = execSQLselect(query);
+  var stat:integer;
+  var old = SetDialogFlag(0);
+  var mode_multi : bool = Opr_SetMultiExec( true ); // в групповом режиме
+  Report.PrintRepHeader();
+  while(rs and rs.moveNext())
+     stat = ProcessInObject(rs.Value(0), OBJTYPE_REQ);
+     Report.PrintTableRow(rs.Value(0), stat);
+  end;
+```
+
+---
+
+## Пример 33: `RunImport`
+
+**Источник:** `Mac/Cb/bnkdirpls.mac`
+**Тип:** `macro`
+**Размер:** 25 строк
+
+```rsl
+macro RunImport(importPathName)
+  var i = 0;
+  var cmd : RsdCommand;
+  var strFile : string;
+  var strDate : string;
+
+  SplitFile(importPathName, strFile);
+
+  strDate = substr(strFile, strlen(strFile) - 7);
+  
+  cmd = RsdCommand("BEGIN RsbBicImport.ImportBnkDirPls(?, ?, ?); END;");
+  cmd.addParam( "p_Oper", RSDBP_IN );
+  cmd.addParam( "p_Date", RSDBP_IN );
+  cmd.addParam( "p_LoadDelta", RSDBP_IN );
+  cmd.value("p_Oper") = {oper};
+  cmd.value("p_Date") = strDate;
+  cmd.value("p_LoadDelta") = LoadDelta;
+  cmd.execute();
+  OnError(err);
+  PrintLn( "Строка: ", err.line );
+  PrintLn( err.message );
+  while( i < cmd.connection.environment.ErrorCount )
+    PrintLn( cmd.connection.environment.Error(i).Descr);
+    i = i + 1;
+  end;
+```
+
+---
+
+## Пример 34: `SIRNSD_Step_Action`
+
+**Источник:** `Mac/DLNG/DEPO/sirnsdImport.mac`
+**Тип:** `macro`
+**Размер:** 125 строк
+
+```rsl
+macro SIRNSD_Step_Action()
+   var count = 0, i = 0;
+   // Сохраним время запуска процедуры для протокола
+   var jvm = CreateObject("rsjvm", "TJavaHost", "GlobalJavaHost");
+   jvm = null;
+   parm.startTime = time();
+   // 1. Выпуски
+   if (parm.isAvoir)
+      var cmdAvr, dataSetAvr;
+      var dataAvr:TAvoirData = null;
+
+      var  sql = " DECLARE "
+               + " BEGIN "
+               + "    RSB_NSD.UpdateStateNSD(" + GetSQLDate({curdate}) + ") ;  "
+               + " END; ";
+
+      var exec = RSDCommand(sql);
+
+      exec.execute();
+
+      if (parm.isProtocolExt)
+        cmdAvr = DL_RSDCommand("SELECT * FROM dsirnsd_avr_tmp WHERE T_State = 3");
+        var countPA = cmdAvr.GetCount();
+        if (countPA > 0)
+          dataSetAvr = cmdAvr.Execute();
+          while(dataSetAvr.moveNext())
+            dataAvr = CreateDataAvr(dataSetAvr, parm.isProtocolExt);
+            action.AddProtocolProcessedRec(dataAvr);
+          end;
+        end;
+      end;
+
+      cmdAvr = DL_RSDCommand("SELECT * FROM dsirnsd_avr_tmp WHERE T_State = 0");
+
+      count = cmdAvr.GetCount();
+      if (count > 0)
+         InitProgress(count, "Обработка выпусков", "Обработка выпусков");   
+
+         // 1. пробегаемся по выпускам НЕ депоз. расписки
+         cmdAvr = null;
+         cmdAvr = DL_RSDCommand("SELECT * FROM dsirnsd_avr_tmp WHERE T_State = 0 AND T_KINDDATA != ?");
+         cmdAvr.addParam(AVOIRISSKIND_DEPOSITORY_RECEIPT);         
+
+         dataSetAvr = cmdAvr.Execute();
+         while(dataSetAvr.moveNext())
+            if (dataSetAvr.State == 0) // проверим на статус, обо при обработке цб может получиться такое, что статус след. бумаги поменялся на 3, а в массиве он будет 0)
+               dataAvr = CreateDataAvr(dataSetAvr, parm.isProtocolExt);
+               if (dataAvr != null)
+                 action.ActionOnData(dataAvr);
+               end;
+            end;
+            i = i + 1;
+            UseProgress(i);
+         end;
+         // 2. а теперь депоз. расписки, ибо у них есть ссылки на выпуски, которые надо было загрузить сначала
+         cmdAvr = null;
+         cmdAvr = DL_RSDCommand("SELECT * FROM dsirnsd_avr_tmp WHERE T_State = 0 AND T_KINDDATA = ?");
+         cmdAvr.addParam(AVOIRISSKIND_DEPOSITORY_RECEIPT);
+         
+         dataSetAvr = null;   
+         dataSetAvr = cmdAvr.Execute();
+         while(dataSetAvr.moveNext())
+            if (dataSetAvr.State == 0) // проверим на статус, обо при обработке цб может получиться такое, что статус след. бумаги поменялся на 3, а в массиве он будет 0)
+               dataAvr = CreateDataAvr(dataSetAvr, parm.isProtocolExt);
+               if (dataAvr != null)
+                 action.ActionOnData(dataAvr);
+               end;
+            end;
+            i = i + 1;
+            UseProgress(i);
+         end;
+         RemProgress();
+      end;
+   end;
+   // 2. Организации
+   if (parm.isOrg)
+      var cmdOrg, dataSetOrg;
+      var dataOrg:TOrganizationData;
+
+      sql = " DECLARE "
+               + " BEGIN "
+               + "    RSB_NSD.UpdateStateOrgNSD();  "
+               + " END; ";
+      
+      exec = RSDCommand(sql);
+
+      exec.execute();
+
+      if (parm.isProtocolExt)
+        cmdOrg = DL_RSDCommand("SELECT * FROM dsirnsd_org_tmp WHERE T_State = 3");
+        var countPO = cmdOrg.GetCount();
+        if (countPO > 0) 
+          dataSetOrg = cmdOrg.Execute();
+          while(dataSetOrg.moveNext())
+            dataOrg = TOrganizationData(parm.isProtocolExt);
+            dataOrg.fillFromTMP(dataSetOrg);
+            action.AddProtocolProcessedRec(dataOrg);
+          end;
+        end;
+      end;
+
+      cmdOrg = DL_RSDCommand("SELECT * FROM dsirnsd_org_tmp WHERE T_State = 0");
+
+      count = cmdOrg.GetCount();
+      if (count > 0)
+         i = 0;
+
+         dataSetOrg = cmdOrg.Execute();
+         InitProgress(count, "Обработка организаций", "Обработка организаций");
+         while(dataSetOrg.moveNext())
+            dataOrg = TOrganizationData(parm.isProtocolExt);
+
+            dataOrg.fillFromTMP(dataSetOrg);
+            action.ActionOnData(dataOrg);
+
+            i = i + 1;
+            UseProgress(i);
+         end;
+         RemProgress();
+      end;
+   end;
+
+   action.PrintReport(parm);
+   exit(1);
+end;
+```
+
+---
+
+## Пример 35: `Блок`
+
+**Источник:** `Mac/DLNG/SECUR/Convert/corrlotfrbond.mac`
+**Тип:** `block`
+**Размер:** 15 строк
+
+```rsl
+    FOR one_lot IN (SELECT LOT.T_SUMID, LOT.T_CORRINTTOEIR, LOT.T_CORRINTTOEIRDATE, FI.T_FACEVALUEFI
+                      FROM DPMWRTSUM_DBT LOT, DFININSTR_DBT FI, DAVOIRISS_DBT AVR, DDL_TICK_DBT TK
+                     WHERE LOT.T_PARTY = -1
+                       AND LOT.T_AMOUNT > 0
+                       AND LOT.T_AMORTCALCKIND = 2 /*ЭПС*/
+                       AND FI.T_FIID = LOT.T_FIID
+                       AND FI.T_FI_KIND = 2
+                       AND RSI_RSB_FIINSTR.FI_AvrKindsGetRoot(FI.T_FI_KIND, FI.T_AVOIRKIND) = RSI_RSB_Fiinstr.AVOIRKIND_BOND
+                       AND AVR.T_FIID = FI.T_FIID
+                       AND AVR.T_FLOATINGRATE = 'X'
+                       AND TK.T_DEALID = LOT.T_DEALID
+                       --AND RSB_SECUR.GetDealMarketTestAttrID(TK.T_BOfficeKind, TK.T_DealID) = 1 /*Тест на рыночность пройден = Да*/
+                     ORDER BY LOT.T_SUMID
+                   )
+    LOOP
+```
+
+---
+
+## Пример 36: `Блок`
+
+**Источник:** `Mac/Cb/fm_masschptmvk.mac`
+**Тип:** `block`
+**Размер:** 13 строк
+
+```rsl
+  var query:string = " SELECT pt.t_PartyID || ' ' || pt.t_Name as PartyStr, " +
+                     "   DECODE (subj.t_SubjectForm, "+
+                     "           2,  (SELECT t_SubjectID || ' ' || LISTAGG(t_Name, '; ') WITHIN GROUP (ORDER BY  T_ISGENERAL DESC ) "+ 
+                     "                 FROM DMVKPERSON_DBT prs "+
+                     "                WHERE prs.t_SubjectID = cm.t_SubjectID GROUP BY t_SubjectID), "+
+                     "           (SELECT t_SubjectID || ' ' || LISTAGG(t_Name, '; ') WITHIN GROUP (ORDER BY  T_ISGENERAL DESC ) "+
+                     "              FROM DMVKINSTITUTE_DBT ins "+
+                     "             WHERE ins.t_SubjectID = cm.t_SubjectID GROUP BY t_SubjectID)) "+
+                     "      AS MvkPartyStr, "+
+                     " cm.t_MatchFlags, cm.t_NameMatchPrc, subj.t_SubjectForm "+ 
+                     " FROM DMVKCHECKPTMATCH_DBT cm, DPARTY_DBT pt, DMVKSUBJECT_DBT subj " +
+                     " WHERE cm.t_CheckID = ? AND cm.t_PartyID = pt.t_PartyID  AND cm.t_SubjectID = subj.t_SubjectID " +
+                     " ORDER BY pt.t_PartyID";
+```
+
+---
+
+## Пример 37: `ПечататьСообщение`
+
+**Источник:** `Mac/Cb/fm_opprn.mac`
+**Тип:** `macro`
+**Размер:** 62 строк
+
+```rsl
+macro ПечататьСообщение(_fmop)
+    record fmop("fm_op.dbt");
+    SetBuff(fmop, _fmop);
+
+    if(Report)
+        OpCounter = OpCounter + 1;
+        CreateHeadersFooters(fmop);
+
+        Информация(fmop);
+        //Report.AddParagraph();
+        Report.MoveToEnd();
+        Операция(fmop);
+
+        if (not Report.IsPoi())
+            Report.AddParagraph();
+        end;
+
+        report.MoveToEnd();
+
+        ПечататьОперация(fmop);
+        Report.AddParagraph();
+
+        var cmd = RsdCommand("SELECT t_ID FROM dfm_op_pt_dbt WHERE t_FMOpID = ? AND T_OPPARTYIDNEW = 0 ORDER BY t_Kind");
+        cmd.NullConversion = true;
+        cmd.AddParam ("", RSDBP_IN, fmop.ID);
+
+        var rs = RsdRecordset(cmd);
+        while (rs.MoveNext())
+            var fm_op_pt = TBfile("fm_op_pt.dbt", "R", 0);
+            fm_op_pt.rec.ID = Int(rs.value(0));
+
+            if (fm_op_pt.GetEq())
+                if (not report.IsPoi())
+                    report.MoveToEnd();
+                end;
+
+                report.InsertNewPage();
+
+                //if (not report.IsPoi())
+                    report.MoveToEnd();
+                //end;
+
+                УчастникОперации(fmop, fm_op_pt, false);
+
+                var cmd2 = RsdCommand("SELECT t_ID FROM dfm_op_pt_dbt WHERE t_FMOpID = ? AND t_OpPartyID = ? AND T_OPPARTYIDNEW <> 0 ORDER BY t_Kind");
+                cmd2.NullConversion = true;
+                cmd2.AddParam ("", RSDBP_IN, fmop.ID);
+                cmd2.AddParam ("", RSDBP_IN, fm_op_pt.rec.ID);
+
+                var rs2 = RsdRecordset(cmd2);
+                while (rs2.MoveNext())
+                    fm_op_pt = TBfile("fm_op_pt.dbt", "R", 0);
+                    fm_op_pt.rec.ID = Int(rs2.value(0));
+
+                    if (fm_op_pt.GetEq())
+                        УчастникОперации(fmop, fm_op_pt, true);
+                    end;
+                end;
+            end;
+        end;
+    end;
+end;
+```
+
+---
+
+## Пример 38: `Constructor`
+
+**Источник:** `Mac/DLNG/TRUST/tspordepo.mac`
+**Тип:** `macro`
+**Размер:** 137 строк
+
+```rsl
+  macro Constructor( SpGroundID )
+    var query, SQLcmd, RSD;
+    var curCB:CB;
+    var i:integer = 0;
+    query = RSDCommand(
+        " select ground.t_DocTemplate, paym.t_ValueDate, groundDraft.t_SignedDate, "+
+        "   groundDraft.t_Xld, groundDraft.t_RegistrDate, groundDraft.t_RegistrTime,"+
+        "   paym.t_DocKind Kind, tsorder.t_RegNum, acntPayer.t_Name pNum,          "+
+        "   acntReceiver.t_Name rNum,                                              "+
+        "   tsorder.t_ID orderID, tsorder.t_DocKind OrderDocKind,                  "+
+        "   acntPayer.t_BriefCode PayerCode, acntReceiver.t_BriefCode ReceiverCode,"+ 
+        "   paym.t_Amount, paymDraft.t_PaymentID, paym.t_DocumentID,               "+
+        "   party.t_ShortName, acP.t_ShortName pType, acR.t_ShortName rType,       "+
+        "   partPayer.t_BriefCode pPartCode, partReceiver.t_BriefCode rPartCode,   "+
+        "   paym.t_BaseFIID,                                                       "+
+        "   acntReceiver.t_AutoKey rAutoKey, acntPayer.t_AutoKey pAutoKey          "+
+        " from dtsiorqst_dbt iorqst,                                               "+
+        "      dpmpaym_dbt   paym,                                                 "+
+        "      dspdrprop_dbt prop,                                                 "+
+        "      dspdraft_dbt  draft,                                                "+
+        "      dspground_dbt ground,                                               "+
+        "      dspground_dbt groundDraft,                                          "+
+        "      dspgrdoc_dbt  grdoc,                                                "+
+        "      dtsorder_dbt  tsorder,                                              "+
+        "      dspdrmove_dbt drmove,                                               "+
+        "      dpmpaym_dbt   paymDraft,                                            "+
+        "      ddepoacnt_dbt acntPayer,                                            "+
+        "      ddepoacnt_dbt acntReceiver,                                         "+
+        "      ddepoacnt_dbt partPayer,                                            "+
+        "      ddepoacnt_dbt partReceiver,                                         "+
+        "      dparty_dbt    party,                                                "+
+        "      ddepoac_dbt   acP,                                                  "+
+        "      ddepoac_dbt   acR                                                   "+
+        " where ground.t_SPgroundID           = ?                                  "+
+        "       AND ground.t_SPgroundID       = grdoc.t_SPgroundID                 "+
+        "       AND tsorder.t_ID              = grdoc.t_SourceDocID                "+
+        "       AND tsorder.t_DocKind         = grdoc.t_SourceDocKind              "+
+        "       AND tsOrder.t_ID              = iorqst.t_OrderID                   "+
+        "       AND iorqst.t_ID               = paym.t_DocumentID                  "+
+        "       AND ( paym.t_DocKind          = 906 OR paym.t_DocKind = 910 )      "+
+        "       AND paym.t_PaymentID          = prop.t_PaymentID                   "+
+        "       AND prop.t_DraftID            = draft.t_Autokey                    "+
+        "       AND draft.t_SPgroundID        = groundDraft.t_SPgroundID           "+
+        "       AND (groundDraft.t_Xld        = ground.t_AltXld                    "+
+        "            OR  groundDraft.t_AltXld = ground.t_Xld )                     "+
+        "       AND drmove.t_DraftID          = draft.t_AutoKey                    "+
+        "       AND paymDraft.t_PaymentID     = drmove.t_PaymentID                 "+
+        "       AND partPayer.t_AutoKey(+)    = paymDraft.t_PayerDpNode            "+
+        "       AND partReceiver.t_AutoKey(+) = paymDraft.t_ReceiverDpNode         "+
+        "       AND acntPayer.t_AutoKey(+)    = partPayer.t_Root                   "+
+        "       AND acntReceiver.t_AutoKey(+) = partReceiver.t_Root                "+
+        "       AND acntReceiver.t_Owner      = party.t_PartyID                    "+
+        "       AND partPayer.t_Type        = acP.t_ID                             "+
+        "       AND partReceiver.t_Type  = acR.t_ID                                "
+
+    );
+
+    query.addParam( "", RSDBP_IN, SpGroundID );
+    query.execute();
+    var DataSet = TRSBDataSet(query);
+
+    if( DataSet.MoveNext() )
+      DocTempl            = DataSet.DocTemplate;
+      paymID              = DataSet.PaymentID;
+      DocumentID          = DataSet.DocumentID;
+
+      ДатаПоставки        = DataSet.ValueDate;
+      ДатаПодачиПоручения = DataSet.SignedDate;
+      ВхНомер             = DataSet.Xld;
+      ДатаРегистрации     = DataSet.RegistrDate;
+      ВремяРегистрации    = DataSet.RegistrTime;
+      Вид                 = DataSet.Kind;
+      НаимПасСчетаДепо    = DataSet.pNum;
+      НаимАктСчетаДепо    = DataSet.rNum;
+      Счет                = DataSet.PayerCode;
+      Счет1               = DataSet.ReceiverCode;
+      Количество          = DataSet.Amount;
+      НомерДоговора       = DataSet.RegNum;
+      Депонент            = DataSet.ShortName;
+      rType               = DataSet.rType;
+      rPartCode           = DataSet.rPartCode;
+      pType               = DataSet.pType;
+      pPartCode           = DataSet.pPartCode;
+      FIID                = DataSet.BaseFIID;
+      OrderID             = DataSet.OrderID;
+      OrderDocKind        = DataSet.OrderDocKind;
+      rAutoKey            = DataSet.rAutoKey;
+
+      if( Вид == 906 ) // Заявление на ввод каритала
+        AutoKey             = DataSet.pAutoKey;
+      elif( Вид == 910 ) // Заявление на вывод каритала
+        AutoKey             = DataSet.rAutoKey;
+      end;
+    end;
+
+    if( (DocKind == 203 /*DOCKIND_DEPO_REC*/) OR (DocKind == 204/*DOCKIND_DEPO_WITHDR*/) ) /* поручение депо (нэцб) */
+      query = RSDCommand(
+          " select distinct fin.t_AvoirKind, fin.t_Point,   "+
+          "        cm.t_Series, cm.t_NumberFirst,           "+
+          "        cm.t_Issuer, leg.t_Principal             "+
+          " from dcertmove_dbt cm, dcertif_dbt cert,        "+
+          "      dvsbanner_dbt bnr, ddl_leg_dbt leg,        "+
+          "      dfininstr_dbt fin                          "+
+          " where cm.t_PaymTO = ?                           "+
+          "     and cert.t_FIID = cm.t_FIID                 "+
+          "     and cert.t_Issuer = cm.t_Issuer             "+
+          "     and cert.t_IssuerDate = cm.t_IssuerDate     "+
+          "     and cert.t_Series = cm.t_Series             "+ 
+          "     and cert.t_NumberFirst = cm.t_NumberFirst   "+
+          "     and bnr.t_InventoryXID = cert.t_Xid         "+
+          "     and bnr.t_Department = cert.t_Department    "+
+          "     and leg.t_DealID = bnr.t_BCID               "+
+          "     and leg.t_LegID = 0 and leg.t_LegKind = 1   "+
+          "     and fin.t_FIID = cert.t_FIID                " 
+      );
+  
+      query.addParam( "", RSDBP_IN, paymID );
+      query.execute();
+      DataSet = TRSBDataSet(query);
+
+      i = 0;
+      while( DataSet.MoveNext() )
+        ArrayCB[i] = CB();
+        ArrayCB[i].AvKind      = DataSet.AvoirKind;
+        ArrayCB[i].Series      = DataSet.Series;
+        ArrayCB[i].NumberFirst = DataSet.NumberFirst;
+        ArrayCB[i].Issuer      = DataSet.Issuer;
+        ArrayCB[i].Principal   = DataSet.Principal;
+        ArrayCB[i].Point       = DataSet.Point;
+  
+        i = i + 1;
+      end;
+
+    elif( DocKind == 299 ) /* поручение депо (эцб) */
+      
+    end;
+  end;
+```
+
+---
+
+## Пример 39: `ОбработатьКурс`
+
+**Источник:** `Mac/DLNG/SECUR/Replication/txproc_rate.mac`
+**Тип:** `macro`
+**Размер:** 43 строк
+
+```rsl
+macro ОбработатьКурс(Action, t_instancedate, Init_Action:String)
+   var SQL, cmd, rs, Счетчик;
+
+   SQL = "select count(*) from DTXCOURSE_DBT where t_replstate = 0 and t_action = " + Action + " and trunc(t_instancedate) = " + t_instancedate;
+   cmd = RsdCommand( SQL);
+   rs = RsdRecordSet(cmd);
+
+   if (rs.Movenext)
+      Счетчик = rs.Value(0);
+      MaxVal = rs.Value(0);
+   end;
+
+   var ProgressIndicator = CreateProgressIndicator(true);
+   ProgressIndicator.Start(Int(MaxVal), "Обработка курсов...");
+
+   Счетчик = 0;
+
+   SQL = "select * from DTXCOURSE_DBT where t_replstate = 0 and t_action = " + Action + " and trunc(t_instancedate) = " + t_instancedate + " order by t_basefiid, t_marketsectorid, t_type, trunc(t_ratedate)";
+   cmd = RsdCommand( SQL);
+   rs = RsdRecordSet(cmd);
+
+   while (rs.Movenext)
+      Счетчик = Счетчик + 1;
+
+      ProgressIndicator.Update(Int(Счетчик), MaxVal);
+
+      if(RslDefCon.IsInTRans == false)
+         RslDefCon.BeginTrans();
+      end;
+
+      if (ProcessRate(rs))
+         RslDefCon.CommitTrans();
+      else
+         RslDefCon.RollbackTrans();
+      end;
+   end;
+
+   ProgressIndicator.Stop();
+
+   return TRUE;
+OnError(er)
+   ЗанестиЗаписьВПротокол(601, 70, "", "", StrFor(1), "Ошибка: " + er.message, date(t_instancedate));
+end;
+```
+
+---
+
+## Пример 40: `ОформитьВыкупВекселей`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsrepay3.mac`
+**Тип:** `macro`
+**Размер:** 82 строк
+
+```rsl
+MACRO ОформитьВыкупВекселей(order, overtrans, Дата, vsacc, CanPayAccModi, Налог_объект:@variant, NeedToTax:bool)
+var
+   prm = RepPrm(),
+   СчетЗачисления = "",
+   stat = 0;
+   ClearGTT_DNPTXOBJ_TMP();
+   Договор = order;
+   ЧерезТранзит = overtrans;
+   СчетПлатУжеИзменен = false;
+   ПолучитьСубъекта(order.Contractor, pt_cntr);
+   ПоУмолчанию(vsacc, "");
+   ПоУмолчанию(CanPayAccModi, true);
+   ПоУмолчанию(Дата, {curdate});
+   var Сумма_ProcBill = 0.0;
+   Счет_Векселя = vsacc;
+   ДатаОформл   = Дата;
+   
+   if (NeedToTax != NULL)//если передавали флаг, то используем его. Не передавали - не используем
+     prm.NeedToTax = NeedToTax;
+   end;
+   
+   if(Договор.DocKind == DL_VSINTERCHANGE)  /* Соглашение о зачете требований */
+      СчетаДогОпределены = true;
+      СчетПлатУжеИзменен = true;
+   elif(Договор.DocKind == DL_VSBARTERORDER) /* мена */
+      СчетПлатУжеИзменен = (not CanPayAccModi);
+   elif(Договор.DocKind == DL_VEKSELDRAWORDER) /* погашение */
+      СчетПлатУжеИзменен = true;
+   end;
+
+   if(ЧерезТранзит)
+      if(not VS_GetAccountOnOrder(order, "-Расчеты", VSORDLNK_K_DRAW, ДатаОформл, @СчетЗачисления, true))
+         stat = 1;
+      end;
+   end;
+
+   prm.СчетЗачисления = СчетЗачисления;
+   prm.flag = VS_GetSetting("РЕЖИМ РАБОТЫ\\ДОНАЧИСЛЕНИЕ ПРОЦЕНТОВ");
+
+   if (stat == 0)
+      stat = ДляКаждогоВекселя(order, @ОформитьВыкупВекселя, VSORDLNK_K_DRAW, prm, "BL");
+   end;
+   
+   
+     /*для ProcBill проводки не нужны. выполняем "наверху"*/
+     var paramsArr = TArray();
+     paramsArr[0] = Сумма_ProcBill;
+     paramsArr[1] = Дата;
+     paramsArr[2] = VS_CurrIDOperation;
+     paramsArr[3] = VS_CurrIDStep;
+
+    if ( (stat == 0) and ( (NeedToTax != NULL) and (NeedToTax ==true ) or ( NeedToTax == NULL ) ) ) 
+      stat = ДляКаждогоВекселя(Договор, @CreateНДР_ProcBill, VSORDLNK_K_DRAW, paramsArr );
+      Сумма_ProcBill = paramsArr[0];
+    end;
+    if (stat == 0)
+      stat = СоздатьНДР_PlusG_2800(ДатаОформл, pt_cntr, Сумма_ProcBill, order, VS_CurrIDOperation, VS_CurrIDStep );
+    end;
+    if (stat == 0)
+      stat = СоздатьНДР_BaseBill(ДатаОформл, pt_cntr, Сумма_ProcBill, order, VS_CurrIDOperation, VS_CurrIDStep );
+    end;
+   
+   if (stat == 0)
+        var tmp = DL_ChangeDLORDER(order.ContractID, "DateOfPayment", ДатаОформл);
+        
+        if (tmp)
+             var cmd2 = null; 
+             /************************************************************/
+             /*перенос из временной таблицы в постоянную                 */
+             /*Почему то си-код с такой же командой выполнятсья не желает*/
+             /************************************************************/
+             /*cmd2 = RSDCommand("BEGIN RSI_NPTO.StartInsertTaxObject(?,?); END;"); 
+             cmd2.addParam( "", RSDBP_IN, VS_CurrIDOperation        ); 
+             cmd2.addParam( "", RSDBP_IN, VS_CurrIDStep         ); 
+             cmd2.execute();*/
+        end;
+        Налог_объект = prm.Налог_объект;
+        return tmp;
+   end;
+
+   return false;
+END;
+```
+
+---

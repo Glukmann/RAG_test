@@ -860,3 +860,857 @@ macro GenMes( addrMes, addrConf )
 
 ---
 
+## Пример 16: `first`
+
+**Источник:** `Mac/Interbnk/r2i_util.mac`
+**Тип:** `macro`
+**Размер:** 6 строк
+
+```rsl
+macro first : bool
+
+  dpDepList.SetFilter(dpDepList.getFilialID(NumFNCash()));
+  ddep = dpDepList.recHandler;
+  return next;
+end;
+```
+
+---
+
+## Пример 17: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/VA/vaw020.mac`
+**Тип:** `macro`
+**Размер:** 28 строк
+
+```rsl
+MACRO ExecuteStep(Buffer, dl_tick)
+var stat = 0;
+
+    record tick( dl_tick );
+    SetBuff( tick, dl_tick );
+
+    if( tick.DealDate > {curdate} )
+       return VA_Err("Преждевременное выполнение шага запрещено.");
+    end;
+
+    DealDate = tick.DealDate;
+
+    if((tickFd = VATickFD(tick)) == null)
+       return VA_Err("Ошибка при определении первичного документа сделки");
+    end;
+
+    ВУтр = ПолучитьВУПолучаемыхЦБВМене(tick);
+    ВУоб = ПолучитьВУПередаваемыхЦБВМене(tick);
+
+    ВалРасчетов = tickfd.GetDealPayFI();
+
+    if(not СчетаПоКаждойВалюте(tick))
+       stat = 1;
+    end;
+
+    return stat;
+
+END;
+```
+
+---
+
+## Пример 18: `PrintStepDocs`
+
+**Источник:** `Mac/DLNG/FOREX/fxsw270.mac`
+**Тип:** `macro`
+**Размер:** 16 строк
+
+```rsl
+MACRO PrintStepDocs (
+                ID_Operation,  /* Номер экземпляра операции */
+                ID_Step,       /* Номер шага операции */
+                Kind_Operation,/* Вид операции */
+                KindStep)      /* Вид шага операции */
+
+  var oproper = TBfile("oproper.dbt"),
+       dl_tick = TBfile("dl_tick.dbt") ;
+  RECORD tick(dl_tick);
+    
+  oproper.rec.ID_Operation = ID_Operation;
+    
+  if (not oproper.GetEq )
+    msgbox( "Не найдена сделка ", ID_Operation );
+    return 1;
+  end;
+```
+
+---
+
+## Пример 19: `GenDoc`
+
+**Источник:** `Mac/Mbr/swgd300.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+macro GenDoc( addrMes )
+
+  SetBuff( wlmes, addrMes );
+
+  PrintLog( 2,"Генерация подтверждения сделки Forex по МТ300" );
+
+  /* На этапе генерации по МТ300 никаких учетных объектов не вставляем 
+     Создаётся фиктивная связь сообщения с нулевым объектом */
+  var stat:integer = ConnectMessageToObject( wlmes.MesID, "X", OBJTYPE_CONVDEAL, 0 );
+  if( stat )
+    std.msg( GetErrMsg() );
+  end;
+```
+
+---
+
+## Пример 20: `Cash_MassPrint`
+
+**Источник:** `Mac/Cb/prbbio.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+macro Cash_MassPrint( Num, /* число печатаемых копий, если 0, считается первым вызовом */
+                      aa, bb, cc )
+  var err;
+  setbuff( payment, bb  );
+  setbuff( order,   aa );
+
+  if(Num) MassCopy = Num;
+  else    MassCopy = КоличествоКопий;
+  end;
+```
+
+---
+
+## Пример 21: `GenDoc`
+
+**Источник:** `Mac/Mbr/swgd700.mac`
+**Тип:** `macro`
+**Размер:** 17 строк
+
+```rsl
+macro GenDoc( addrMes )
+  SetBuff( wlmes, addrMes );
+
+  PrintLog(2,"Генерация документарного аккредитива по МТ700");
+  var stat : integer = 0, ErrMsg : string = "";
+
+  var LcObj : RsbLetterOfCredit = RsbLetterOfCredit();
+
+  ReadFieldsAndFillObj(LcObj, wlmes);
+
+  // Дозаполнить остальные поля аккредитива
+  LcObj.Trn = wlmes.Trn;
+  LcObj.Department = {OperDprt};
+  if( (stat = LcObj.ChangeState(WLD_STATUS_LC_DEFER)) != 0 )
+    ErrMsg = GetErrMsgEx(stat, "Ошибка при установке статуса аккредитива");
+    RunError(ErrMsg, ErrMsg);
+  end;
+```
+
+---
+
+## Пример 22: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/VA/var060.mac`
+**Тип:** `macro`
+**Размер:** 55 строк
+
+```rsl
+MACRO ExecuteStep(Buffer, dl_tick, DocKind, ID_Operation, ID_Step)
+var
+    stat = 0, paym = TBfile("pmpaym.dbt");
+
+    record tick( dl_tick );
+    SetBuff( tick, dl_tick );
+
+    _ID_Operation = ID_Operation;
+    _ID_Step = ID_Step;
+
+    GetOprDate( DATE_REP_PAY, @StepDate );
+
+    if( StepDate > {curdate} )
+       return VA_Err("Преждевременное выполнение шага запрещено.");
+    end;
+
+    VA_Get1stPlanPaym(tick.BofficeKind, tick.DealID, PM_PURP_PRINC_RET, paym);
+
+    if(paym.rec.PayerAccount == "")
+       return VA_Err("Ошибка при формировании платежа|Не задан счет плательщика");
+    end;
+
+    pm_obj = MyRsbPayment( paym.rec.PaymentID );
+    ВалРасчетов = pm_obj.PayerFIID;
+
+    if(not VA_IS_INTEGRATED(@ИнтегрРежимРаботы))
+       stat = 1;
+    end;
+
+    if((ИнтегрРежимРаботы) AND (pm_obj.PayerBankID != {OurBank}) AND (pm_obj.FuturePayerAmount != 0))
+       stat = VA_Err("Плановый платеж не скитован полностью");
+    end;
+
+    if((stat == 0) and not DoBkps(tick))
+       stat = 1;
+    end;
+
+    if((stat == 0) and not SetFinishedToPaym(tick))
+       stat = 1;
+    end;
+
+    if(stat == 0)
+       stat = УВ_СписаниеВекселейПоСделкеСВнебаланса(tick, StepDate);
+    end;
+
+    if((stat == 0) and not SetEndedToBanners(tick))
+       stat = 1;
+    end;
+
+    if((stat == 0) and not VA_InnerMoney_Repay(tick, StepDate, УВПолучСумПогаш))
+       stat = 1;
+    end;
+
+    return stat;
+END;
+```
+
+---
+
+## Пример 23: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/VA/var040.mac`
+**Тип:** `macro`
+**Размер:** 18 строк
+
+```rsl
+MACRO ExecuteStep(Buffer, dl_tick)
+    var DealDate, stat = 0;
+    record tick(dl_tick);
+
+    SetBuff(tick, dl_tick);
+    
+    DealDate = tick.DealDate;
+
+    if(not WriteOff(tick, DealDate))
+        stat = 1;
+    end;
+    
+    if((stat == 0) and not VA_InnerFI(tick, DealDate, VA_GRNUM_SREPAY_EREQ, null, УВПогашениеЦБ))
+        stat = 1;
+    end;
+
+    return stat;
+END;
+```
+
+---
+
+## Пример 24: `ПолучитьВУПолучаемыхЦБВМене`
+
+**Источник:** `Mac/DLNG/VA/vaxutils.mac`
+**Тип:** `macro`
+**Размер:** 10 строк
+
+```rsl
+MACRO ПолучитьВУПолучаемыхЦБВМене(tick)
+  var ВалютаУчета = -1;
+  record dl_tick("dl_tick");
+
+  copy(dl_tick, tick);
+
+  VA_ForEachBanner(dl_tick, @ПолучитьВУ, VSORDLNK_K_BUY, @ВалютаУчета, "BL");
+
+  return ВалютаУчета;
+END;
+```
+
+---
+
+## Пример 25: `ОпределитьОснованиеПроводки`
+
+**Источник:** `Mac/DLNG/NETTING/dlntlib.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+MACRO ОпределитьОснованиеПроводки (ntg)
+    var Основание = "Неттинг с ",
+        pt = TRecHandler ("party");
+
+    if (0==ПолучитьСубъекта(ntg.Contractor, pt))
+        Основание = Основание + pt.rec.ShortName;
+    else
+        Основание = Основание + "неизвестным контрагентом";
+    end;
+
+    return String(Основание, " за ", ntg.ValueDate:m);
+END;
+```
+
+---
+
+## Пример 26: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/MMARK/mmcntre_j.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+MACRO ExecuteStep( Buffer, Document, DocKind, IDOperation, IDStep)
+
+  debugbreak;
+  record sfcontr( sfcontr );
+  SetBuff( sfcontr, Document );
+  DL_PrepareCarryBuffer (Buffer);
+
+  ID_Operation = IDOperation;
+  ID_Step      = IDStep;
+
+  contr_pd = MMFirstDoc (DL_SFCONTR, sfcontr.ID, false);
+
+  if (KvitAmounts[0] < $0)
+      return 1;
+  end;
+```
+
+---
+
+## Пример 27: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/VEKSEL/vsv024rp.mac`
+**Тип:** `macro`
+**Размер:** 25 строк
+
+```rsl
+MACRO ExecuteStep(Buffer, dl_order, DocKind, ID_Operation, ID_Step)
+var
+    StepDate, stat = 0;
+
+    record order( dl_order );
+    SetBuff( order, dl_order );
+
+    VS_CurrIDOperation = ID_Operation;
+    VS_CurrIDStep      = ID_Step;
+
+    if(GetOprStatus(VS_OPERSTATUS_VSDEALS_ENDED_ZPHR) != VS_OPERSTATUS_VSDEALS_ENDED_COMPLETE)
+      msgbox ("Завершите шаг \"Передача записи для хранилища\", чтобы продолжить операцию выкупа");
+      return 1;
+    end;
+
+    if(not VS_TestStepDate(DATE_REP_DOC, @StepDate, order.SignDate))
+       return 1;
+    end;
+
+    if(not ПроводкиПоНалогам(order, StepDate)) /* удержать налоги, сформировать платежи, создать объекты НДР*/
+      stat = 1;
+    end;
+
+    return stat;
+END;
+```
+
+---
+
+## Пример 28: `СформироватьОтчетДляПроводки`
+
+**Источник:** `Mac/Cb/pr2161lib.mac`
+**Тип:** `macro`
+**Размер:** 58 строк
+
+```rsl
+MACRO СформироватьОтчетДляПроводки( pr_document, onlyPrimary )
+
+  var IsDepo : bool = (pr_document.rec.Chapter == CHAPT5);
+  var RecID : string = IfThenElse( IsDepo,
+                       GetRecIDForCarryDepo(pr_document),
+                       "ID (dacctrn_dbt.AccTrnID): " + string( pr_document.rec.AccTrnID ) );
+
+  var Carry       = Проводка( pr_document.rec.Chapter );
+  var ExRateCarry = Проводка( pr_document.rec.Chapter );
+  var factr:TBFile = TBFile( "acctrn", "R", 0 );
+  Carry.ДобавитьСторону( СторонаПроводки( pr_document.rec.Account_Payer, 
+                                          pr_document.rec.FIID_Payer   , 
+                                          pr_document.rec.Chapter      , 
+                                          pr_document.rec.Sum_Payer    , 
+                                          PRT_Debet                    ,
+                                          pr_document.rec.Sum_NatCur   ,
+                                          IsDepo                       ,
+                                          pr_document.rec.AccTrnID     ) );
+  Carry.ДобавитьСторону( СторонаПроводки( pr_document.rec.Account_Receiver, 
+                                          pr_document.rec.FIID_Receiver   , 
+                                          pr_document.rec.Chapter         , 
+                                          pr_document.rec.Sum_Receiver    , 
+                                          PRT_Credit                      ,
+                                          pr_document.rec.Sum_NatCur      ,
+                                          IsDepo                          ,
+                                          pr_document.rec.AccTrnID        ) );
+  
+  МемориальныйОрдер2161У(  RecID,
+                           pr_document.rec.Numb_Document ,
+                           pr_document.rec.Date_Carry    ,
+                           pr_document.rec.TypeDocument  ,
+                           Carry                         ,
+                           pr_document.rec.Ground        ,
+                           IsDepo                        ).PrintReport();
+                       
+  if( not onlyPrimary and ( pr_document.rec.ExRateAccTrnID > 0 ) )
+    factr.rec.AccTrnID = pr_document.rec.ExRateAccTrnID;    
+    if( factr.GetEQ() )
+      ExRateCarry.ДобавитьСторону( СторонаПроводки( factr.rec.Account_Payer, 
+                                                    factr.rec.FIID_Payer   , 
+                                                    factr.rec.Chapter      , 
+                                                    factr.rec.Sum_Payer    , 
+                                                    PRT_Debet              ,
+                                                    factr.rec.Sum_NatCur   ) );
+      ExRateCarry.ДобавитьСторону( СторонаПроводки( factr.rec.Account_Receiver, 
+                                                    factr.rec.FIID_Receiver   , 
+                                                    factr.rec.Chapter         , 
+                                                    factr.rec.Sum_Receiver    , 
+                                                    PRT_Credit                ,
+                                                    factr.rec.Sum_NatCur      ) );
+      return МемориальныйОрдер2161У( "ID (dacctrn_dbt.AccTrnID): " + string( pr_document.rec.AccTrnID ),
+                                      factr.rec.Numb_Document ,
+                                      factr.rec.Date_Carry    ,
+                                      factr.rec.TypeDocument  ,
+                                      ExRateCarry             ,
+                                      factr.rec.Ground        ).PrintReport();
+    end;
+  end;
+```
+
+---
+
+## Пример 29: `CheckConditions`
+
+**Источник:** `Mac/DEPOSITR/chk_trn_grp.mac`
+**Тип:** `macro`
+**Размер:** 22 строк
+
+```rsl
+macro CheckConditions(trndoc)
+  var ok = true;
+  var doc = TRecHandler( "sbdepdoc.dbt" );
+
+  if (NeedCheckTypeAccount(trndoc.Type_Account))
+    doc.clear();
+    doc.rec.IsCur = trndoc.IsCur;
+    doc.rec.FNCash = trndoc.FNCash;
+    doc.rec.Account = trndoc.Account;
+    doc.rec.Referenc = trndoc.Referenc;
+    doc.rec.ApplType = trndoc.ApplType;
+    doc.rec.InSum = trndoc.Sum;
+    doc.rec.iApplicationKind = trndoc.iApplicationKind;
+    doc.rec.ApplicationKey = trndoc.ApplicationKey;
+    doc.rec.TypeComplexOper = doc.rec.TypeOper = trndoc.TypeOper;
+    doc.rec.Type_Account = trndoc.Type_Account;
+    doc.rec.DepDate_Document = trndoc.Date_Document;
+    doc.rec.CodClient = trndoc.CodClient;
+    if (CheckAlgPoint(doc, 240) != 0)
+      ok = false;
+    end;
+  end;
+```
+
+---
+
+## Пример 30: `GetLatestOperDate`
+
+**Источник:** `Mac/DEPOSITR/t2s_comm.mac`
+**Тип:** `macro`
+**Размер:** 23 строк
+
+```rsl
+macro GetLatestOperDate;
+
+  var
+    SK_DepDoc = KeyNum(DepDoc, 6),
+    RecFound,
+    OpFound = false,
+    RetVal = Dep.Open_Date;
+
+
+  DepDoc.Referenc = Dep.Referenc;
+  DepDoc.Date_Document = {curdate};
+  DepDoc.NumDayDoc = 32767;
+  RecFound = GetLE(DepDoc);
+  while(RecFound and (not OpFound)
+    and (DepDoc.Referenc == Dep.Referenc))
+    if((DepDoc.TypeOper != Расчет_Процентов)
+      and (DepDoc.TypeOper != Зачисление_Процентов)
+      and IsServDoc(DepDoc))
+      RetVal = DepDoc.Date_Document;
+      OpFound = true;
+    end;
+    RecFound = Prev(DepDoc);
+  end;
+```
+
+---
+
+## Пример 31: `NameTurnKind`
+
+**Источник:** `Mac/Cb/rep_nu.mac`
+**Тип:** `macro`
+**Размер:** 10 строк
+
+```rsl
+MACRO NameTurnKind( Kind )
+/*
+FILE alg(namealg) ; /* алгоритмы выборов */
+CONST ALG_NU_TURN = 111;
+
+  alg.iTypeAlg = ALG_NU_TURN; /* Виды оборотов */
+  alg.iNumberAlg = Kind; /* Номер вида */
+  if ( getEQ(alg) ) return alg.szNameAlg;
+  else return "":
+  end;
+```
+
+---
+
+## Пример 32: `FillBankContragent_camt`
+
+**Источник:** `Mac/Mbr/swmx_camt_lib.mac`
+**Тип:** `macro`
+**Размер:** 14 строк
+
+```rsl
+macro FillBankContragent_camt(rsbcnf : RsbWldConfirmation, wlmes, TranslateID : string)
+  record pmpttrf(pmpttrf); ClearRecord(pmpttrf);
+  var IsPtFound : bool = false; // участник найден
+  var SrvPmPtTrf : RsbPmPtTrf = rsbcnf.TrfParties();
+
+  if(rsbcnf.DKFlag == WL_CREDIT)
+    if( SrvPmPtTrf.FindByRole("DbtrAgt", pmpttrf) == 0 )
+      IsPtFound = true;
+    end;
+  else
+    if( SrvPmPtTrf.FindByRole("CdtrAgt", pmpttrf) == 0 )
+      IsPtFound = true;
+    end;
+  end;
+```
+
+---
+
+## Пример 33: `PrintOtherField`
+
+**Источник:** `Mac/Mbr/swmesprn.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+macro PrintOtherField( имя, поле )
+  FILE wltpfld(wltpfld) key 1;
+
+  wltpfld.TpID = TRANSP_SWIFT;
+  wltpfld.Name = имя;
+
+  if( GetEQ( wltpfld ) )
+    [###:#](имя, StrUpr(wltpfld.Description ));
+    PrintMultiFields( поле, wltpfld.LenEdit, wltpfld.NumLines );
+  else
+    [###:#](имя, поле);
+  end;
+```
+
+---
+
+## Пример 34: `GenDoc`
+
+**Источник:** `Mac/Mbr/fnsgdkwtx.mac`
+**Тип:** `macro`
+**Размер:** 127 строк
+
+```rsl
+macro GenDoc( addrMes )
+
+  SetBuff( wlmes, addrMes );
+  
+  PrintLog(2,"Генерация УО по KWT");
+
+  var field_name, field_value, block_name, err = 0;
+  var FileName:string = "";
+  var MesID:integer = 0, MesState:integer = 0;
+  var isFirstResult:bool = true;
+  var ResultCode:string = "";
+  var DateTime:string = "";
+  var needCreateError:bool = false;
+  var Description, Code, Value;
+  var ResultID = 0;
+  var isErrorInserted = false;
+
+  var RejectFlag:bool = false;
+  GetRegistryValue( "PS\\REQOPENACC\\OPERATION\\Отвергать_Части_Выписки", V_BOOL, RejectFlag, err);
+  
+  while( СчитатьПоле( field_name, field_value, block_name ) )
+    if( field_name == "ИмяФайла" )
+      FileName = field_value;
+
+      if( Index( FileName, "BZ1" ) == 1 )
+        FileName = Substr( FileName, 5, StrLen( FileName ) - 4 - 9 )
+      end;
+ 
+      var select = "select mes.t_MesID, mes.t_State, mes.t_InsideAbonentID, mes.t_InsideAbonentCodeKind, mes.t_InsideAbonentCode " +
+                   "  from dwlmes_dbt mes, dwlsess_dbt sess " +
+                   "    where mes.t_SessionID = sess.t_SessionID " +
+                   "      and upper(substr(sess.t_FileName, instr(sess.t_FileName, '\\', -1, 1) + 1)) = upper(:FILENAME || '.xml')";
+      var params = makeArray( SQLParam("FILENAME", FileName) );
+      var rs = execSQLselect( select, params, FALSE );
+
+      if( rs and rs.moveNext() )
+        MesID = rs.Value(0);
+        MesState = rs.Value(1);
+        wlmes.InsideAbonentID = rs.Value(2);
+        wlmes.InsideAbonentCodeKind = rs.Value(3);
+        wlmes.InsideAbonentCode = rs.Value(4);
+
+        if( CheckOtherMess( MesID ) )
+          return false;
+        end;
+      end;
+    end;
+
+    if( field_name == "ДатаВремяПроверки" )
+      DateTime = field_value;
+    end;
+
+    var reqBlck = "Результат";
+    var pos = index(block_name, reqBlck);
+    if( (pos > 0) AND (pos+strlen(reqBlck) == strlen(block_name)+1 ) ) // проверим, что это последний блок
+      if( field_name == "КодРезПроверки" )
+        ResultCode = field_value;
+      end;
+      if( field_name == "Пояснение" )
+        Description = field_value;
+      end;
+      if( field_name == "КодРекв" )
+        Code = field_value;
+      end;
+      if( field_name == "ЗначРекв" )
+        Value = field_value;
+      end;
+
+      if( (field_name == "_end") AND (isFirstResult == true) )
+        isFirstResult = false;
+        var NoChangeState:bool = false, State = -1;
+        if( ResultCode != "01" )
+
+          needCreateError = true;
+
+          if( ( MesState == 25 ) and ( RejectFlag == false ) )
+            ResultID = GetResultID( MesID );
+            if( ResultID > 0 )
+              /*Связь подтверждения с входящим сообщением */
+              var meslnk = TRecHandler("wlmeslnk.dbt");
+              meslnk.rec.MesID = wlmes.MesID;
+              meslnk.rec.Direct  = "X";/*WLD_MES_IN*/
+              meslnk.rec.ObjID   = ResultID;
+              meslnk.rec.ObjKind = OBJTYPE_MESDEFECT;
+              var MesLnkObj = RsbWlMesLnk( meslnk.rec.ObjKind, meslnk.rec.ObjID, meslnk.rec.Direct );            
+              MesLnkObj.Insert( meslnk );
+              MesLnkObj.Save();
+            else
+              if( FindOrigMessAndReceipt( MesID, FileName, 0 ) == TRUE )
+                NoChangeState = TRUE;
+                State = 100;
+              else
+                NoChangeState = FALSE;
+                State = 0;
+              end;
+              DefectMes( MesID, NULL, NoChangeState, State );
+            end;
+          else 
+            DefectMes( MesID, @ResultID );
+          end;
+          isErrorInserted = CreateWlError( ResultCode, Description, Code, Value, ResultID );
+        else // ResultCode == "01"
+          var DeliveryDate:date;
+
+          if( (FindOrigMessAndReceipt( MesID, FileName, 1 ) == TRUE) OR (wlmes.State == WLD_STATUS_MES_DEFECT) )
+            NoChangeState = true;
+          else
+            NoChangeState = false;
+          end;
+
+          ВставитьПодтверждениеОДоставке( MesID, NoChangeState, GetDate( DateTime ), GetllName( OBJTYPE_WLRESCODE_MNS, FNS_RP_APPROVED ), true )
+        end;
+      elif( needCreateError == true ) //isFirstResult == false
+        if( field_name == "_end" ) // необходимо проверять блоками, иначе одна ошибка будет записываться несколько раз
+          isErrorInserted = CreateWlError( ResultCode, Description, Code, Value, ResultID );
+        end;
+        if( ( MesID > 0 ) and ( RejectFlag == false ) )   
+          DefectOtherMess( MesID );
+        end;
+      end;
+    end;
+
+    if( isErrorInserted and needCreateError )
+      ResultCode = Description = Code = Value = "";
+      isErrorInserted = false;
+    end;
+  end;
+```
+
+---
+
+## Пример 35: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/DV/dvnop075.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+macro ExecuteStep( doc, FDoc, DocKind, ID_Operation, ID_Step )
+
+  record ndeal(dvndeal);
+  var Payment:RsbPayment;
+  var PaymentID:integer = 0;
+  var ДатаИсполненияШага:date;
+
+  SetBuff(ndeal, FDoc);
+  var FD = DVFirstDocNDeal(DocKind, ndeal);
+
+  if (FD.ОтказОтИсполнения())
+     return 0;
+  end;
+```
+
+---
+
+## Пример 36: `FillOwreqByPayDocType`
+
+**Источник:** `Mac/Cb/ws_oo_type_PayDocType.mac`
+**Тип:** `macro`
+**Размер:** 19 строк
+
+```rsl
+macro FillOwreqByPayDocType(Owreq : TRecHandler, PayDocData : PayDocType)
+  DebugPrint("FillOwreqByPayDocType", "Begin");
+
+  Owreq.rec.InvoiceID = PayDocData.InvoiceID;
+  Owreq.rec.InvoiceDate = PayDocData.InvoiceDate;
+  Owreq.rec.SignAmountTax = PayDocData.SignAmountTax;
+  Owreq.rec.Tax         = int(PayDocData.Tax);
+  Owreq.rec.AmountTax   = ConvCurrUnits(PayDocData.AmountTax, PayDocData.CurrencyCode);
+  Owreq.rec.Amount      = ConvCurrUnits(PayDocData.Amount, PayDocData.CurrencyCode);
+  Owreq.rec.AmountToPay = ConvCurrUnits(PayDocData.AmountToPay, PayDocData.CurrencyCode);
+  Owreq.rec.CurrCode    = PayDocData.CurrencyCode;
+  Owreq.rec.PaymGround  = PayDocData.Purpose;
+  Owreq.rec.ValidUntil  = PayDocData.ValidUntil;
+
+  FillOwreqByPayeeType(Owreq, PayDocData.Payee);
+  FillOwreqByPayerOrg (Owreq, PayDocData.PayerOrg);
+
+  DebugPrint("FillOwreqByPayDocType", "End");
+end;
+```
+
+---
+
+## Пример 37: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/DV/dvnop071.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+macro ExecuteStep( doc, FDoc, DocKind, ID_Operation, ID_Step )
+
+  record ndeal(dvndeal);
+  var Payment:RsbPayment;
+  var PaymentID:integer = 0;
+  var ДатаИсполненияШага:date;
+
+  SetBuff( ndeal, FDoc );
+  var FD = DVFirstDocNDeal(DocKind, ndeal);
+
+  if (FD.ОтказОтИсполнения())
+     return 0;
+  end;
+```
+
+---
+
+## Пример 38: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/SECUR/old/scrou0327.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+macro ExecuteStep( doc, FDoc)
+
+  record deal(dl_tick);       
+  var    dat, FD, FD2, error; 
+
+  SetBuff( deal, FDoc ); 
+  FD = SPFirstDoc( deal, false );
+//  FD2 = SPFirstDoc( deal, true );
+
+  GetOprDate( FD.GetKindDate(DATE_DEALSETAVOIRISS), dat ); /*Дата поставки ц/б */
+  if( dat > {curdate} )
+     return SayErrorBuySale( deal, "Преждевременное выполнение шага запрещено." );
+  end;
+```
+
+---
+
+## Пример 39: `StartDepoAcc`
+
+**Источник:** `Mac/DLNG/SECUR/scstartdepo.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+MACRO StartDepoAcc(DocumentID, IsWebService)
+  var dl_comm = TBFile("dl_comm.dbt");
+  var err = 0;
+
+  dl_comm.rec.DocumentID = DocumentID;
+  if(not dl_comm.GetEQ())
+    msgbox("Ошибка поиска операции");
+    return 1;
+  end;
+```
+
+---
+
+## Пример 40: `Печать_ОтчетСканирования`
+
+**Источник:** `Mac/Cb/ostscan.mac`
+**Тип:** `macro`
+**Размер:** 24 строк
+
+```rsl
+MACRO Печать_ОтчетСканирования (Вызов,rec_step,Статус,Сообщение)
+
+        setbuff (oprstep_rec,rec_step);
+
+var stat;
+        if (Вызов==Первый)
+[                     Отчет о групповом выполнении шагов операций.    ];
+[┌────────┬───────┬──────┬──────────────────────────────────────────────────────────────────────┐];
+[│ Номер  │ Номер │Номер │                           Сообщение                                  │];
+[│операции│ шага  │ошибки│                                                                      │];
+[├────────┼───────┼──────┼──────────────────────────────────────────────────────────────────────┤];
+        elif (Вызов==Ошибка)
+
+                if (Статус == 0)
+                        Сообщение = "Шаг выполнен успешно";
+                end;
+                
+[│########│#######│######│######################################################################│]
+(oprstep_rec.ID_Operation,oprstep_rec.ID_Step,Статус,Сообщение:w);
+
+        elif (Вызов==Последний)
+[└────────┴───────┴──────┴──────────────────────────────────────────────────────────────────────┘];
+        end;
+END;
+```
+
+---

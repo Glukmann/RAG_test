@@ -816,3 +816,970 @@ private macro AfterSaveP(PartyInfo, PartyID, ErrorMessage : @WsErrorMessage)
 
 ---
 
+## Пример 16: `AdjustDep`
+
+**Источник:** `Mac/DEPOSITR/upldstat.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+macro AdjustDep(Sum)
+
+  Dep.Sum_Rest = Dep.Sum_Rest + Sum;
+  TrnStat = Update(Dep);
+end;
+```
+
+---
+
+## Пример 17: `outSellRecLine`
+
+**Источник:** `Mac/DEPOSITR/lot_rep.mac`
+**Тип:** `macro`
+**Размер:** 59 строк
+
+```rsl
+  macro outSellRecLine;
+  
+    var
+      priceRepr=$0,
+      boughtPriceRepr=$0,
+      soldItems=0,
+      boughtItems=0,
+      soldDepo=0,
+      boughtDepo=0,
+      soldPar=$0,
+      boughtPar=$0,
+      sumSoldRepr=$0,
+      sumBoughtRepr=$0;
+   
+    findCIMisc( capIssueDoc.rec.Type, capIssueDoc.rec.Issue );
+  
+    lotteryDocInfo.setRecordAddr(capIssueDoc,0,
+      capIssueDoc.fldOffset("Info"),true);
+
+    if(capIssueDoc.rec.Operation==O_LOTTERY_SELL) 
+      soldItems = lotteryDocInfo.rec.NumItems;
+      totSoldItems = totSoldItems + SoldItems;
+      soldDepo = getDepo( SoldItems, lotteryDocInfo.rec.Name );
+      totSoldDepo = totSoldDepo + SoldDepo;
+      totSumSold=totSumSold+capIssueDoc.rec.Sum;
+      priceRepr=lotteryDocInfo.rec.Price;
+      sumSoldRepr=capIssueDoc.rec.Sum;
+    elif(capIssueDoc.rec.Operation==O_LOTTERY_BUY) 
+      boughtItems = lotteryDocInfo.rec.NumItems;
+      totBoughtItems = totBoughtItems + boughtItems;
+      boughtDepo = getDepo( boughtItems, lotteryDocInfo.rec.Name  );
+      totBoughtDepo = totBoughtDepo + boughtDepo;
+      totSumBought=totSumBought+capIssueDoc.rec.Sum;
+      boughtPriceRepr=lotteryDocInfo.rec.Price;
+      sumBoughtRepr=capIssueDoc.rec.Sum;
+    end;
+  
+    updateValCounter( capIssueDoc.rec.ApplicationKind, capIssueDoc.rec.ApplicationKey );
+
+    if ( not makeReport )
+      return;
+    end;
+
+
+    [|########|#########|#####|#####|#################|################|#########|#####|#####|#################|#################|         |         |]
+    (
+      capIssueDoc.rec.DocNumber,
+      soldPar:z,
+      soldItems:z,
+      soldDepo:z,
+      priceRepr:z,
+      sumSoldRepr:z,
+      boughtPar:z,
+      boughtItems:z,
+      boughtDepo:z,
+      boughtPriceRepr:z,
+      sumBoughtRepr:z
+    );
+  end;
+```
+
+---
+
+## Пример 18: `ExecuteStep`
+
+**Источник:** `Mac/DLNG/SECUR/scoverdr.mac`
+**Тип:** `macro`
+**Размер:** 78 строк
+
+```rsl
+macro ExecuteStep( Doc, FDoc )
+
+  var    FD, dat, error; 
+  var    SumNKD = $0, AvoirCost = $0, NewSum = $0, OldSum = $0, D = $0, Kind = ""; 
+  var    ВыполненоВидовПереоценки = 0, ExistsCourse = false, SinceDate; 
+  var    RateRec = $0, err;
+
+  var    DlMarket = TBFile( "dlmarket.dbt", "R", 0 ), MarketID = null, CentrOffice = null; 
+
+  SetBuff( deal, FDoc ); 
+  dat = ScOprServDoc.CommDate; 
+  FD = SPFirstDoc( deal );
+
+  var датаОстатка = DL_GetBalanceDateAfterWorkDayByCalendar(dat, 0, FD.ПолучитьКалендСвязанный());
+
+  /*переоценка по валюте*/ 
+  /*4. Если Flag2 ==да и в сделке (ВЦ != НацВ и ВР = НацВ и ВН = НацВ) */
+  /* выполнить переоценку по валюте*/ 
+  if( (ScOprServDoc.Flag2 == SET_CHAR) AND 
+      (FD.dl_leg.rec.CFI != NATCUR) AND (FD.GetParametr(MC_TYPE_PARAMETR_PAYCURRENCY) == NATCUR) AND (FD.fininstr.rec.FaceValueFI == NATCUR)
+  )        
+     /*ВыполненоВидовПереоценки = ВыполненоВидовПереоценки + 1;        */
+
+     /*счет переоценки требований*/
+     if( ОпределитьПереоцениваемыйСчет( FD, dat, "Т" ) != 0 )
+        return 1;
+        InsertErrorLog_XML(ScOprServDoc.DocumentID, ScOprServDoc.DocKind);
+        ClearErrorArr();
+     end;
+     /*счет переоценки обязательств*/
+     if( ОпределитьПереоцениваемыйСчет( FD, dat, "О" ) != 0 )
+        return 1;
+        InsertErrorLog_XML(ScOprServDoc.DocumentID, ScOprServDoc.DocKind);
+        ClearErrorArr();
+     end;
+
+     /*определим с какого счета берем старый остаток*/
+     if( FD.BuySale == DEAL_TYPE_BUY ) 
+        copy( forw_r, forw_o ); /*в покупках со счета обязательств*/
+     else
+        copy( forw_r, forw_t ); /*в продажах со счета требований*/
+     end;  
+        /*4.2. Расчитать Новую сумму S как сумма сделки (TotalCost) * курс рубля к ВЦ  за дату операции*/
+        /*для универсальности кода считаем не покурсу рубля, а по курсу валюты счета "Форвард"*/
+     if( not SmartConvertSum( NewSum, FD.dl_leg.rec.TotalCost, dat, FD.dl_leg.rec.CFI, forw_r.Code_Currency, false) )
+        return SayError( 1,  "Ошибка при получении информации о котировке ценной бумаги в валюте "+ПолучитьКодФинИн(forw_r.Code_Currency) );
+     end;
+     NewSum = Round(NewSum, 2);
+
+     OldSum = Round(ABS(GetRestAccount(forw_r, датаОстатка)), 2);
+
+     /*посчитать разницу, на которую нужно сделать корректировку*/ 
+     D = NewSum - OldSum; 
+     
+     err = ConvSum(RateRec, $10000000000, dat, FD.dl_leg.rec.CFI, NATCUR, 0);
+     if( D != 0 ) 
+        ВыполненоВидовПереоценки = ВыполненоВидовПереоценки + 1;        
+
+        /*переоценка по требованиям*/ 
+        if( ВыполнитьПроводкуКорректировки( FD, Doc, dat, D, "Т", false ) != 0 )
+          InsertErrorLog_XML(ScOprServDoc.DocumentID, ScOprServDoc.DocKind);
+          ClearErrorArr();
+          return 1;
+        end; 
+
+        ScOpReportLineData[ScOpReportLineData.Size] = SvOpOvervalue_RD( deal.DealCode, FD.pm_avoir.rec.FIID, "Т", OldSum, ABS(NewSum), GetFICode(forw_t.Code_Currency,  null, FICK_ISOSTRING), FD.pm_avoir.rec.Amount, Double(RateRec)/10000000000.0, deb.Account, kred.Account, ABS(D), SumNKD);
+
+        /*переоценка по обязательствам*/ 
+        if( ВыполнитьПроводкуКорректировки( FD, Doc, dat, D, "О", false ) != 0 )
+           InsertErrorLog_XML(ScOprServDoc.DocumentID, ScOprServDoc.DocKind);
+           ClearErrorArr();
+           return 1;
+        end;
+        ScOpReportLineData[ScOpReportLineData.Size] = SvOpOvervalue_RD( deal.DealCode, FD.pm_avoir.rec.FIID, "О", OldSum, ABS(NewSum), GetFICode(forw_o.Code_Currency,  null, FICK_ISOSTRING), FD.pm_avoir.rec.Amount, Double(RateRec)/10000000000.0, deb.Account, kred.Account, ABS(D), SumNKD);
+
+     end;
+
+  end;
+```
+
+---
+
+## Пример 19: `printTab33Line`
+
+**Источник:** `Mac/BOOK/f601.mac`
+**Тип:** `macro`
+**Размер:** 40 строк
+
+```rsl
+  macro printTab33Line
+
+    var
+      currISO = data.rec.CurrISO,
+      thsSold = ths( data.rec.Sold + data.rec.SoldNR ),
+      thsRubCredit = ths( data.rec.RubCredit + data.rec.RubCreditNR ), 
+      rate = safeDiv( thsRubCredit, thsSold ), 
+      avg = safeDiv( thsSold, data.rec.SellCount + data.rec.SellCountNR ), 
+      conv_given = ths( data.rec.Conv_Given + data.rec.Conv_GivenNR );
+                                            
+    if ( ( thsSold != 0 ) or ( thsRubCredit != 0 ) or ( conv_given != 0 )
+      or ( data.rec.Dep_GetCountNR != 0 ) or ( data.rec.Dep_GetCount != 0 ) )
+      [ ### ### ############## ############ ############ ######### ######## ######## ############# ########### ########## ]
+      (
+        lineNo, 
+        currISO, 
+        data.rec.CurrName:w, 
+        thsSold:0:3:z, 
+        thsRubCredit:0:3:z,
+        rate:0:3:z,    
+        ( data.rec.SellCount + data.rec.SellCountNR ):z, 
+        avg:0:3:z, 
+        conv_given:0:3:z, 
+        data.rec.Dep_GetCountNR:z, 
+        data.rec.Dep_GetCount:z
+      );
+      lineNo = lineNo + 1;
+    end; 
+
+    cbRepFile.addParameter( "141010" + currISO, ths( data.rec.SoldNR ) );      
+    cbRepFile.addParameter( "141020" + currISO, ths( data.rec.Conv_GivenNR ) );      
+    cbRepFile.addParameter( "141011" + currISO, ths( data.rec.RubCreditNR ) );      
+    cbRepFile.addParameter( "241010" + currISO, data.rec.SellCountNR, cbFmt_numeric );      
+    cbRepFile.addParameter( "142010" + currISO, ths( data.rec.Sold ) );      
+    cbRepFile.addParameter( "142020" + currISO, ths( data.rec.Conv_Given ) );      
+    cbRepFile.addParameter( "142011" + currISO, ths( data.rec.RubCredit ) );      
+    cbRepFile.addParameter( "242010" + currISO, data.rec.SellCount, cbFmt_numeric );      
+    cbRepFile.addParameter( "245000" + currISO, data.rec.Dep_GetCountNR, cbFmt_numeric );      
+    cbRepFile.addParameter( "246000" + currISO, data.rec.Dep_GetCount, cbFmt_numeric );      
+  end;
+```
+
+---
+
+## Пример 20: `makeBookpass`
+
+**Источник:** `Mac/DLNG/VA/vax150.mac`
+**Тип:** `macro`
+**Размер:** 65 строк
+
+```rsl
+  MACRO makeBookpass(tick, fd)
+    var 
+       Счет, i = 0, stat = 0, Purpose, 
+       СуммаНВ = $0, result, pm_obj, payms = TBfile("pmpaym.dbt");
+
+    while((stat == 0) AND (i < ArrGrp.size))
+      СуммаНВ = СуммаНВ + VA_Convert(ArrGrp[i].amount, StepDate, ArrGrp[i].FIID, NATCUR, stat);
+      if(stat != 0)
+          return stat;
+      end;
+
+      i = i + 1;
+
+    end;
+
+    if(fd.GetBartDiffSum())
+      if(fd.IsBartDiffPayerOurBank())
+        СуммаНВ = СуммаНВ + VA_Convert(fd.GetBartDiffSum(), StepDate, fd.GetBartDiffSumFI(), NATCUR, stat);
+      else
+        СуммаНВ = СуммаНВ - VA_Convert(fd.GetBartDiffSum(), StepDate, fd.GetBartDiffSumFI(), NATCUR, stat);
+      end;
+    end;
+
+    if(stat == 0)
+      var КатегПлюс, КатегМинус;
+
+      КатегПлюс  = "+Маржа, вексель";
+      КатегМинус = "-Маржа, вексель";
+      
+      if(СуммаНВ > 0) // Мы доплачиваем, ФР отрицательный
+         
+         if( not VA_GetAccount(КатегМинус, fd, Счет, MC_OPENACC_CREATE, NATCUR, null, null, StepDate) )
+           stat = 1;
+         end;
+
+         if( not stat)
+           if( not VA_MBookpass(0,
+                                NATCUR, Счет, Abs(СуммаНВ),
+                                NATCUR, СчетРеализация, Abs(СуммаНВ),
+                                String("Отнесение финансового результата на счета расходов"),
+                                NULL, NULL,
+                                null, StepDate) )
+             stat = 1;
+           end;
+         end;
+
+      elif(СуммаНВ < 0)
+         if( not VA_GetAccount(КатегПлюс, fd, Счет, MC_OPENACC_CREATE, NATCUR, null, null, StepDate) )
+           stat = 1;
+         end;
+         if( not stat)
+           if( not VA_MBookpass(0,
+                                NATCUR, СчетРеализация, Abs(СуммаНВ),
+                                NATCUR, Счет, Abs(СуммаНВ),
+                                String("Отнесение финансового результата на счета доходов"),
+                                NULL, NULL,
+                                null, StepDate) )
+             stat = 1;
+           end;
+         end;
+      end;
+    end;
+
+    return stat;
+  END;
+```
+
+---
+
+## Пример 21: `OutLine`
+
+**Источник:** `Mac/DEPOSITR/chk_clsd.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+macro OutLine;
+
+  [|####|#########################|##################|############|###################|#####|]
+  (
+    PsDoc.NDoc,
+    Acc_Form(PsDoc.Account),
+    Sum,
+    Op,
+    SubOp,
+    PsDoc.NPack
+  );
+end;
+```
+
+---
+
+## Пример 22: `AddTotalSum`
+
+**Источник:** `Mac/DLNG/VA/vaprinfo.mac`
+**Тип:** `macro`
+**Размер:** 10 строк
+
+```rsl
+MACRO AddTotalSum(TMas:@variant, Sum, PFI, BCCFI, AccFI)
+  VAR i = 0;
+
+  while(i < TMas.Size)
+    if((TMas[i].PFI == PFI) and (TMas[i].BCCFI == BCCFI) and (TMas[i].AccFI == AccFI))
+      TMas[i].Sum = TMas[i].Sum + Sum;
+      return true;
+    end;
+    i = i + 1;
+  end;
+```
+
+---
+
+## Пример 23: `Cur2Rub`
+
+**Источник:** `Mac/DEPOSITR/passive.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro Cur2Rub(Sum)
+
+  if ( IsCur )
+    return Money( CBRate * Sum );
+  else
+    return Sum;
+  end;
+```
+
+---
+
+## Пример 24: `FX_MarketComiss`
+
+**Источник:** `Mac/DLNG/FOREX/fxcomiss.mac`
+**Тип:** `macro`
+**Размер:** 40 строк
+
+```rsl
+macro FX_MarketComiss(fd)
+  var Comiss =     ПолучитьСуммуКомиссий(),
+      Sum, SumNDS, Cur,
+      Debet, Credit,
+      DebetNDS, CreditNDS;
+
+// т.к. в дистрибутиве только одна комиссия, которая работает через механизм комиссий,
+// к тому же еще и в нац. валюте, то делаем без излишеств.
+// если появяться другие комиссии, то доработаем механизм проводок
+    if (Comiss.size > 0)
+        Sum    = Comiss[0].Sum;
+        SumNDS = Comiss[0].SumNDS;
+        Cur    = Comiss[0].FIID_Sum;
+
+        if (Sum > 0)
+            if ((not FX_GetDocAccount("-КВ, к/о", fd, Debet, NULL, NULL, Cur, NULL, NULL, NULL, NULL)) OR
+                (not FX_GetDocAccount("-Биржа", fd, Credit, NULL, NULL, Cur, NULL, NULL, NULL, NULL)))
+                return false;
+            end;
+            if ((not FX_Carry(1, Cur, Debet, Credit, abs(Sum), {curdate}, 0, "Оплата биржевой комиссии", 0)))
+                fx_error("Не могу выполнить проводки по оплате биржевой комиссии");
+                return 1;
+            end;
+        end;
+
+        if (SumNDS > 0)
+            if ((not FX_GetDocAccount("+НДС", fd, DebetNDS, NULL, NULL, Cur, NULL, NULL, NULL, NULL)) OR
+                (not FX_GetDocAccount("-Биржа", fd, CreditNDS, NULL, NULL, Cur, NULL, NULL, NULL, NULL)))
+                return 1;
+            end;
+
+            if ((not FX_Carry(1, Cur, DebetNDS, CreditNDS, abs(SumNDS), {curdate}, 0, "Оплата НДС по биржевой комиссии", 0)))
+                fx_error("Не могу выполнить проводки по оплате биржевой комиссии");
+                return 1;
+            end;
+        end;
+    end;
+
+    return 0;
+end;
+```
+
+---
+
+## Пример 25: `PrepareXWParams`
+
+**Источник:** `Mac/DLNG/VA/vaxutils.mac`
+**Тип:** `macro`
+**Размер:** 28 строк
+
+```rsl
+MACRO PrepareXWParams(
+           tick,
+           IsDiffPayExists:@variant,     /* есть ли платеж по оплате разницы? */
+           IsDiffPayerOurBank:@variant,  /* является ли наш банк плательщиком платежа по оплате разницы? */
+           BAiFI:@variant,               /* валюта базового актива */
+           BAiSum:@variant,              /* сумма номиналов передаваемых по сделке векселей */
+           CAiFI:@variant,               /* валюта контрактива */
+           CAiSum:@variant,              /* сумма номиналов принимаемых по сделке векселей */
+           DiffFI:@variant,              /* валюта оплаты разницы */
+           diffSum:@variant,             /* сумма платежа по оплате разницы в валюте CAiFI */
+           minFI:@variant,               /* валюта суммы = min(S_tr, S_ob) */
+           minSum:@variant               /* сумма = min(S_tr, S_ob) */
+)
+    mode = 1;
+
+    return PrepareBartParams(tick,
+                     @IsDiffPayExists, 
+                     @IsDiffPayerOurBank, 
+                     @BAiFI,
+                     @BAiSum, 
+                     @CAiFI,
+                     @CAiSum,
+                     @DiffFI, 
+                     @diffSum, 
+                     @minFI, 
+                     @minSum);
+
+END;
+```
+
+---
+
+## Пример 26: `SumToStr`
+
+**Источник:** `Mac/DLNG/SECUR/spinfdr.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+  macro SumToStr (sum) : string
+    if (sum == $0)
+      return "";
+    end;
+    if (is_ap == true)
+      return string (sum : a);
+    end;
+    return string (sum);
+  end;
+```
+
+---
+
+## Пример 27: `AdjustStatisticsOut`
+
+**Источник:** `Mac/DEPOSITR/t2s_comm.mac`
+**Тип:** `macro`
+**Размер:** 19 строк
+
+```rsl
+macro AdjustStatisticsOut(Sum)
+
+  record StatParm("StatParm.rec");
+
+  ClearRecord(StatParm);
+  StatParm.Op = Binsert;
+  StatParm.KindOp = D_OUT;
+  StatParm.Sum = Sum;
+  StatParm.CloseFlag = StrFor(1);
+  StatParm.Type_Account = Dep.PrevAccount;
+  StatParm.CodCur = Dep.Code_Currency;
+  StatParm.Date = {curdate};
+  StatParm.IsCur = Dep.IsCur;
+  StatParm.FlagRez = DepClient.Citizenship;
+  if (Index(Dep.UserTypeAccount,"Н") > 0)
+    StatParm.Branch = NumRealFNCash();
+  else
+    StatParm.Branch = Dep.FNCash;
+  end;
+```
+
+---
+
+## Пример 28: `Convert`
+
+**Источник:** `Mac/DEPOSITR/t2s_comm.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro Convert(Sum)
+
+  var ScaleRate = 1;
+
+  if (Curr.ScaleOfc != 0)
+    ScaleRate = Curr.ScaleOfc;
+  end;
+```
+
+---
+
+## Пример 29: `GetSum`
+
+**Источник:** `Mac/CELLS/getstsum.mac`
+**Тип:** `macro`
+**Размер:** 23 строк
+
+```rsl
+macro GetSum(Contract,Tarif)
+
+var Sum = $0,
+    i=0;
+
+	// если тариф не интервальный 
+  if( (( Tarif.rec.TermMinVal == 0 ) and ( Tarif.rec.TermMaxVal == 0 ) and ( Tarif.rec.TermUnit == 0 ) and (Tarif.rec.PeriodUnit != 0) ) 
+       or ( ( Tarif.rec.TermMinVal != 0 ) and ( Tarif.rec.TermMaxVal != 0 ) and ( Tarif.rec.TermUnit == Tarif.rec.PeriodUnit ) ) )
+
+  		// если тариф периодический или интервально-периодический
+    if(Contract.rec.TermTail == 0)
+      i = Contract.rec.TermValue;
+    else
+      if( Contract.rec.TermType == Day)
+        i = Contract.rec.TermValue + Contract.rec.TermTail;
+      else
+        i = Contract.rec.TermValue + 1;
+      end;
+    end;
+  else
+  	// если тариф интервальный
+    i = 1;
+  end;
+```
+
+---
+
+## Пример 30: `ToXmlTimeZone`
+
+**Источник:** `Mac/Cb/fm_4936u.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+macro ToXmlTimeZone(value, timezone)
+    var hour, min, sec;
+    TimeSplit(value, hour, min, sec);
+    return String(LPAD2(hour, "0"), ":", LPAD2(min, "0"), ":", LPAD2(sec, "0"), " ", GetTimeZone(timezone));
+end;
+```
+
+---
+
+## Пример 31: `ПечататьПараметрыЦБ`
+
+**Источник:** `Mac/DLNG/DEPO/dprdistr.mac`
+**Тип:** `macro`
+**Размер:** 25 строк
+
+```rsl
+macro ПечататьПараметрыЦБ()
+  var width = 30;
+  var PartyStr = "";
+
+  AddStr();
+  PrintCell("Ценные бумаги");
+
+  AddStr();
+  PrintCellSizeLeft( sign + sign + "тип выплат", width );
+  PrintCell( GetPaymentTypeStr( DataCrp.PaymentType ) );
+
+  AddStr();
+  PrintCellSizeLeft( sign + sign + "эмитент ценных бумаг", width );
+  PartyStr = GetPartyStr( regstr.Issuer );
+  PrintCell( PartyStr );
+
+  AddStr();
+  PrintCellSizeLeft( sign + sign + "место хранения/учета", width );
+  PartyStr = GetPartyStr( regstr.StoragePlace );
+  PrintCell( PartyStr );
+
+  AddStr();
+  PrintCellSizeLeft( sign + sign + "список-реестр", width );
+  PrintCell( regstr.Number + "   дата сбора " + regstr.Date );
+end;
+```
+
+---
+
+## Пример 32: `GetPenalty`
+
+**Источник:** `Mac/CELLS/pnprday.mac`
+**Тип:** `macro`
+**Размер:** 13 строк
+
+```rsl
+macro GetPenalty(Contract,Tarif)
+
+var Sum = $0,penDays = 0, SumForPeriod = $0;
+
+  penDays = GetPenaltyDays( Contract );
+  penDays = PenDays - Tarif.rec.PrivilegeDays;
+  SumForPeriod = GetSum(Contract,Tarif);
+
+  if( penDays > 0 )
+    Sum = money(ProcentForDay * SumForPeriod * penDays / 100);
+  else
+    penDays = 0;
+  end;
+```
+
+---
+
+## Пример 33: `outPayRecLine`
+
+**Источник:** `Mac/DEPOSITR/lot_rep.mac`
+**Тип:** `macro`
+**Размер:** 26 строк
+
+```rsl
+  macro outPayRecLine;
+  
+    lotteryDocInfo.setRecordAddr(capIssueDoc,0,
+      capIssueDoc.fldOffset("Info"),true);
+
+    totPrice=TotPrice+lotteryDocInfo.rec.Price;
+    totSum=TotSum+capIssueDoc.rec.Sum;
+    totNumItems=TotNumItems+lotteryDocInfo.rec.NumItems;
+
+    updateValCounter( capIssueDoc.rec.ApplicationKind, capIssueDoc.rec.ApplicationKey );
+
+    if ( not makeReport )
+      return;
+    end;
+
+    [| ################################### | ##### | ##### | ######### |        | ###### | ####### | ################# |]
+    (
+      ciMisc.rec.Name,
+      lotteryDocInfo.rec.Drawing,
+      lotteryDocInfo.rec.Series,
+      lotteryDocInfo.rec.Number,
+      lotteryDocInfo.rec.Price,
+      lotteryDocInfo.rec.NumItems,
+      capIssueDoc.rec.Sum
+    );
+  end;
+```
+
+---
+
+## Пример 34: `Блок`
+
+**Источник:** `Mac/DLNG/TRUST/tsportfrep.mac`
+**Тип:** `block`
+**Размер:** 10 строк
+
+```rsl
+   macro print_cur_sum()
+      i = 0;
+      c_sum = "";
+      c_ccy = "";
+      while(sum[i] != NULL)
+         if(c_sum == "")
+            c_sum = sum[i] + " " + ccy[i];
+         else
+            c_sum = c_sum + "\n" + sum[i] + " " + ccy[i];
+         end;
+```
+
+---
+
+## Пример 35: `manipulation_func`
+
+**Источник:** `Mac/DLNG/UniLoader/dl_startUniLoader.mac`
+**Тип:** `macro`
+**Размер:** 25 строк
+
+```rsl
+MACRO manipulation_func(_loader, _obj)
+  var
+      retVal = true,
+      rs = TRsbDataSet("select * from ddl_ul_format_dbt where t_ID = " + _loader.Format);
+
+    rs.MoveNext();
+
+/*    if (rs.ID_DATAKIND == UL_DATAKIND_RATES)
+        InstLoadModule("UL_Import_Rate.mac");
+        retVal = ExecMacro2("UL_Import_Rate", _obj, _loader.Log);
+    elif (rs.ID_DATAKIND == UL_DATAKIND_FRX)
+        InstLoadModule("UL_Import_DLNGDeals.mac");
+        retVal = ExecMacro2("UL_Import_FXDeal", _obj, _loader.Log);
+    elif (rs.ID_DATAKIND == UL_DATAKIND_IBC)
+        InstLoadModule("UL_Import_DLNGDeals.mac");
+        retVal = ExecMacro2("UL_Import_IBCDeal", _obj, _loader.Log);
+    else
+        if (ValType(_loader.Log) != V_UNDEF)
+            _loader.AddErrorLog("Не известный вид данных");
+            return false;
+        end;
+    end;*/
+
+    return retVal;
+END;
+```
+
+---
+
+## Пример 36: `ПечататьПараметрыЦБ`
+
+**Источник:** `Mac/DLNG/DEPO/dpnotdiv.mac`
+**Тип:** `macro`
+**Размер:** 25 строк
+
+```rsl
+macro ПечататьПараметрыЦБ()
+  var width = 30;
+  var PartyStr = "";
+
+  AddStr();
+  PrintCell( "Ценные бумаги" );
+
+  AddStr();
+  PrintCellSize( sign + sign + "тип выплат", width );
+  PrintCell( GetPaymentTypeStr( DataCrp.paymenttype ) );
+
+  AddStr();
+  PrintCellSize( sign + sign + "эмитент ценных бумаг", width );
+  PartyStr = GetPartyStr( regstr.Issuer );
+  PrintCell( PartyStr );
+
+  AddStr();
+  PrintCellSize( sign + sign + "место хранения/учета", width );
+  PartyStr = GetPartyStr( regstr.StoragePlace );
+  PrintCell( PartyStr );
+
+  AddStr();
+  PrintCellSize( sign + sign + "список-реестр", width );
+  PrintCell( regstr.Number + "   дата сбора " + regstr.Date );
+end;
+```
+
+---
+
+## Пример 37: `Fill32A`
+
+**Источник:** `Mac/Mbr/swgd910.mac`
+**Тип:** `macro`
+**Размер:** 6 строк
+
+```rsl
+macro Fill32A( DateScr, Cur, Sum )
+  MT910.ValueDate = DateScr;
+  MT910.Currency  = Cur;
+  MT910.Sum       = moneyl(Sum);
+  return TRUE;
+end;
+```
+
+---
+
+## Пример 38: `SIRNSD_Step_ParseXML`
+
+**Источник:** `Mac/DLNG/DEPO/sirnsdImport.mac`
+**Тип:** `macro`
+**Размер:** 72 строк
+
+```rsl
+macro SIRNSD_Step_ParseXML(iAction, bAvoir, bCoupon, bPartial, bOrg, sType711, bProtocolExt) : bool
+   var stat = true;
+
+   parm = TParmExecute(iAction, bAvoir, bCoupon, bPartial, bOrg, sType711, bProtocolExt);
+
+   if (iAction == SIRNSD_MERGE)
+      action = CMergeAction(parm);
+   elif (iAction == SIRNSD_UPDATE)
+      action = CUpdateAction(parm);
+   elif (iAction == SIRNSD_ADD)
+      action = CAddAction(parm);
+   elif (iAction == SIRNSD_UPDATE_ADD)
+      action = CUpdateAddAction(parm);
+   else
+      msgbox("Неизвестный режим запуска");
+      return false;
+   end;
+
+   TruncateTablesSIRNSD();
+
+   if ((parm.Type711 != "Все") and not IsBondType711(parm.Type711) and not IsShareType711(parm.Type711) and
+       not IsUnitType711(parm.Type711) and not IsDepType711(parm.Type711))
+      var strMsg = "Выбран вид ц/б, по которому нет данных в справочниках НРД.";
+      if (parm.isOrg)
+         if (not GetTrue(false, strMsg+"|Обрабатывать эмитентов?"))
+            return false;
+         else
+            parm.isAvoir = false;
+         end;
+      else
+         msgbox(strMsg);
+         return false;
+      end;
+   end;
+   
+   // 2. Загружаем справочники во временные файлы
+   if (parm.isAvoir)
+      if (iAction != SIRNSD_MERGE) 
+         COrganization_XML(CUpdateAddAction(parm)).readData(); // Организации грузим полностью
+      elif ((iAction == SIRNSD_MERGE) and parm.isOrg) // для сравнения организации грузим по действию и по флажку
+         COrganization_XML(action).readData();
+      else
+         COrganization_XML(CParseAction(parm)).readData(); // просто грузим, без идентификации
+      end;
+      // если выбрана ДР, то остальные бумаги подкачиваем по действию Parse
+      if ((ALL == sType711) or IsBondType711(parm.Type711) or IsDepType711(parm.Type711))
+         CBondsSIRNSD_XML(IIF(IsDepType711(parm.Type711),CParseAction(parm),action), parm.isCoupon, parm.isPartial).readData();
+      end;
+      if ((ALL == sType711) or IsShareType711(parm.Type711) or IsDepType711(parm.Type711))
+         CSharesSIRNSD_XML(IIF(IsDepType711(parm.Type711),CParseAction(parm),action)).readData();
+      end;
+      if ((ALL == sType711) or IsUnitType711(parm.Type711) or IsDepType711(parm.Type711))
+         CUnitsSIRNSD_XML(IIF(IsDepType711(parm.Type711),CParseAction(parm),action)).readData();
+      end;
+      if ((ALL == sType711) or IsDepType711(parm.Type711))
+         CDeposSIRNSD_XML(action).readData();
+      end;
+      // обновим статус на 0 те цб, код 711 который совпадает с указанным в панели
+      AvoirFilterType711(parm.Type711, action);
+      // постобработка нерезидентов (поиск partyID у выпусков, у которых организации являются эмитентами)
+      TOrganizationData().ProcessOnNotResident();
+   elif (parm.isOrg)
+      COrganization_XML(action).readData();
+   end;
+
+   if ((iAction != SIRNSD_MERGE) and parm.isOrg)
+      // Если работаем с организацями, то установим статус исходный для конкрентного действия (чтобы для обновления не было записей для вставки)
+      OrgFilter(action);
+   end;
+
+   return stat;
+end;
+```
+
+---
+
+## Пример 39: `PrepareBartParams`
+
+**Источник:** `Mac/DLNG/VA/vaxutils.mac`
+**Тип:** `macro`
+**Размер:** 75 строк
+
+```rsl
+MACRO PrepareBartParams(
+           tick,
+           IsDiffPayExists:@variant,     /* есть ли платеж по оплате разницы? */
+           IsDiffPayerOurBank:@variant,  /* является ли наш банк плательщиком платежа по оплате разницы? */
+           BAiFI:@variant,               /* валюта базового актива */
+           BAiSum:@variant,              /* сумма номиналов передаваемых по сделке векселей */
+           CAiFI:@variant,               /* валюта контрактива */
+           CAiSum:@variant,              /* сумма номиналов принимаемых по сделке векселей */
+           DiffFI:@variant,              /* валюта оплаты разницы */
+           diffSum:@variant,             /* сумма платежа по оплате разницы в валюте CAiFI */
+           minFI:@variant,               /* валюта суммы = min(S_tr, S_ob) */
+           minSum:@variant               /* сумма = min(S_tr, S_ob) */
+)
+var stat = 0, TmpSum_tr = 0, TmpSum_ob = 0, DealDate = {curdate},
+    payms = TBfile("pmpaym.dbt");
+
+    IsDiffPayExists    = false;
+    IsDiffPayerOurBank = false;
+    DiffFI  = NATCUR;
+    diffSum = 0;
+
+    if(VA_IsBarterW(tick.DealType)) /* мена СВ-УВ */
+       mode = 1;
+    else
+       mode = 0;
+    end;
+
+    stat = VA_ForEachBanner(tick, @CalcFiid_and_Sum, VSORDLNK_K_ALL, null, "L");
+
+    DealDate = tick.DealDate;
+
+    if(VA_Get1stPlanPaym(tick.BofficeKind, tick.DealID, PM_PURP_VSBARTERDIFF, payms))
+       IsDiffPayExists = true;
+       if(payms.rec.Payer == {OurBank})
+          IsDiffPayerOurBank = true;
+       end;
+       DiffFI = payms.rec.PayFIID;
+    end;
+
+    if((BAiFI != NULL))
+       BAiFI = l_BAiFI;
+    end;
+    if((BAiSum != NULL))
+       BAiSum = S_ob;
+    end;
+    if((CAiFI != NULL))
+       CAiFI = l_CAiFI;
+    end;
+    if((CAiSum != NULL))
+       CAiSum = S_tr;
+    end;
+
+    TmpSum_tr = VA_Convert(S_tr, DealDate, l_CAiFI, DiffFI);
+    TmpSum_ob = VA_Convert(S_ob, DealDate, l_BAiFI, DiffFI);
+
+    if(TmpSum_tr > TmpSum_ob)
+       diffSum = TmpSum_tr - TmpSum_ob;
+    else
+       diffSum = TmpSum_ob - TmpSum_tr;
+    end;
+
+    if((minSum != NULL) AND (minFI != NULL))
+      minFI  = NATCUR;
+      minSum = 0;
+      if(TmpSum_tr > TmpSum_ob)
+         minFI   = l_BAiFI;
+         minSum  = S_ob;
+      else
+         minFI   = l_CAiFI;
+         minSum  = S_tr;
+      end;
+    end;
+
+    return (stat == 0);
+END;
+```
+
+---
+
+## Пример 40: `CreateDocsOnMirror`
+
+**Источник:** `Mac/CELLS/getandpu.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+  macro CreateDocsOnMirror(ThisPeriodLenth, PayMethod, SafeID, CellNumber, Sum, NdsSum, PayStartDate, PayEndDate, dsDoc)
+    if (ThisPeriodLenth != 0)
+      CreateDocsOnMirrorAndMove(3, PayMethod, SafeID, CellNumber, Sum, NdsSum, PayStartDate, PayEndDate, dsDoc);
+
+      StoreValue("doc:Валюта@Нарезка", ParentOp.pmntCurrCode);
+      StoreValue("doc:Сумма@ДоходыТП", Sum + RetrieveValue("doc:Сумма@ДоходыТП"));
+      StoreValue("doc:Сумма@НДСДоходыТП", NdsSum + RetrieveValue("doc:Сумма@НДСДоходыТП"));
+    end;
+  end;
+```
+
+---

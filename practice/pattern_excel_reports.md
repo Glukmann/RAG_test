@@ -609,3 +609,737 @@ End;
 
 ---
 
+## Пример 16: `Блок`
+
+**Источник:** `Mac/DLNG/SECUR/incaccps_Form.mac`
+**Тип:** `block`
+**Размер:** 14 строк
+
+```rsl
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_PERIOD,          DL_PNFLD_PERIOD,      @DL_FldProc_Period,      FormData.Period, 17, 8 ); 
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_YEAR,            DL_PNFLD_YEAR,        @DL_FldProc_Year,        FormData.Year );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_GOS,             H_GOS_CHECKBOX,       @DLUSR_FldProc_GosCheckBox, FormData.IsGos );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_AVRKIND,         H_AVRKIND,            @DLUSR_FldProc_AvrKind );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_NOTGOS,          H_NOTGOS_CHECKBOX,    @DLUSR_FldProc_GosCheckBox, FormData.IsNotGos );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_CIRCINMARKET,    DL_PNFLD_CHECKBOX,    @DL_FldProc_CheckBox,    FormData.CirculateInMarket );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_NOTCIRCINMARKET, DL_PNFLD_CHECKBOX,    @DL_FldProc_CheckBox,    FormData.NotCirculateInMarket );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_NOMINRUR,        DL_PNFLD_CHECKBOX,    @DL_FldProc_CheckBox,    FormData.NominateInRUR );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_NOMINCUR,        DL_PNFLD_CHECKBOX,    @DL_FldProc_CheckBox,    FormData.NotNominateInRUR );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_AVRCODE,         DL_PNFLD_AVRCODE,     @DLUSR_FldProc_AvrCode );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_AVRNAME,         DL_PNFLD_AVRNAME,     @Default );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_BACKREPO,        DL_PNFLD_CHECKBOX,    @DL_FldProc_CheckBox,    FormData.IsBackRepo );
+     AddFieldProc( 0, PNFLD_INCACCPS_REG_PRINTMETHOD,     DL_PNFLD_PRINTMETHOD, @DL_FldProc_PrintMethod, DL_OUTREPORT_EXCEL, 36, 25 );
+  END;
+```
+
+---
+
+## Пример 17: `printHeader`
+
+**Источник:** `Mac/DEPOSITR/FnsPercentServices.mac`
+**Тип:** `macro`
+**Размер:** 5 строк
+
+```rsl
+macro printHeader(peroid)
+    [                       Ошибки форматно-логического контроля
+            Налоговый период ####
+    ] (peroid);
+end;
+```
+
+---
+
+## Пример 18: `Блок`
+
+**Источник:** `Mac/DLNG/SECUR/dpcomrep.mac`
+**Тип:** `block`
+**Размер:** 12 строк
+
+```rsl
+      if(Data.ReportRun)
+         if(Data.PrintHeadClient)
+            EndCopyTable();
+            Data.PrintHeadClient = false;
+         end;
+         AddStandardFooter("N1_");
+         CopyAllSheetInTotalBook(NULL, false, "N1_Footer", 1);
+      else
+         PrintFormatString(
+            "Нет начисленных или оплаченных комиссий, соответствующих параметрам отчета.",
+            "N1_NoData", "Нет начисленных или оплаченных комиссий, соответствующих параметрам отчета."
+         );
+```
+
+---
+
+## Пример 19: `PrintLine`
+
+**Источник:** `Mac/DLNG/SECUR/sprgjour.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro PrintLine(DepoAccCode, DepoType, OpenDate, CloseDate)
+   DP_AddPrintCell( Rep, DepoAccCode, 0, 0, "l:" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, DepoType, 0, 0, "l:" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, OpenDate, 0, 0, "l:f:" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, CloseDate, 0, 0, "l:" + RepFontStyleTitel );
+   Rep.AddStr();
+end;
+```
+
+---
+
+## Пример 20: `ReportHead`
+
+**Источник:** `Mac/DLNG/DV/dvdlrrep.mac`
+**Тип:** `macro`
+**Размер:** 7 строк
+
+```rsl
+macro ReportHead( Period, Year )
+
+   Rep.AddPrintCell("СВЕДЕНИЯ О СДЕЛКАХ С ЦЕННЫМИ БУМАГАМИ, СОВЕРШЕННЫХ ПРОФЕССИОНАЛЬНЫМ УЧАСТНИКОМ", Rep.GetHeaderWidth(), 0, "c:" + FontStyleTitel, REP_ELEM_STR);
+   Rep.AddStr();
+   Rep.AddPrintCell("за " + PeriodName_GetMonthsAndQuart( Period, Year ), Rep.GetHeaderWidth(), 0, "c:" + FontStyleTitel, REP_ELEM_STR);
+   Rep.AddStr();
+end;
+```
+
+---
+
+## Пример 21: `PrintHeader`
+
+**Источник:** `Mac/DEPOSITR/pcestimg.mac`
+**Тип:** `macro`
+**Размер:** 15 строк
+
+```rsl
+macro PrintHeader
+
+  [ ];
+  [            Групповой расчет и начисление накопленных процентов];
+  [ ];
+  [ +--------------------+------+-------------------------------+-------------+];
+  [ |                    |      |          Сумма процентов      |             |];
+  [ |     Вид вклада     |Валюта+-------------------------------+     Дата    |];
+  [ |                    |      |   Начисленная |  Начисленная  |             |];
+  [ |                    |      |    на дату    |     всего     |             |];
+  [ +--------------------+------+---------------+---------------+-------------+];
+
+  WasPrintHeader = TRUE;
+
+end;
+```
+
+---
+
+## Пример 22: `PrintStr`
+
+**Источник:** `Mac/DLNG/DEPO/dpunconclmas.mac`
+**Тип:** `macro`
+**Размер:** 16 строк
+
+```rsl
+macro PrintStr(CodeDA, NameDA, NameDep, CodeDep,
+               OpenDateDA, CodeDP, OpenDateDP)
+
+   DP_AddPrintCell( Rep, ContrNum, 0, 0, "l:w" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, ContrName, 0, 0, "l:w" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, ContrDate, 0, 0, "l:w" + RepFontStyleTitel );
+
+   DP_AddPrintCell( Rep, CodeDA, 0, 0, "l:w" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, NameDA, 0, 0, "l:w" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, NameDep, 0, 0, "l:w" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, CodeDep, 0, 0, "l:w" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, OpenDateDA, 0, 0, "l:w" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, CodeDP, 0, 0, "l:w" + RepFontStyleTitel );
+   DP_AddPrintCell( Rep, OpenDateDP, 0, 0, "r:w" + RepFontStyleTitel );
+   Rep.AddStr();
+end;
+```
+
+---
+
+## Пример 23: `PrintLine`
+
+**Источник:** `Mac/DLNG/DV/dvfcsapr.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+macro PrintLine( v_curDate, Code, ContrName, Curr, AccumMarginSum, InterestRate, InterestSum )
+
+  Rep.AddPrintCell( Date(v_curDate):f, 0, 0, "c" );
+  Rep.AddPrintCell( Code, 0, 0, "c");
+  Rep.AddPrintCell( ContrName, 0, 0, "l");
+  Rep.AddPrintCell( Curr, 0, 0, "c");
+  Rep.AddPrintCell( Money(AccumMarginSum), 0, 2, "r");
+  Rep.AddPrintCell( Double(InterestRate)+"%", 0, 4, "c");
+  Rep.AddPrintCell( Money(InterestSum), 0, 2, "r");
+
+  Rep.AddStr();
+end;
+```
+
+---
+
+## Пример 24: `DepoKindSubHeader`
+
+**Источник:** `Mac/DLNG/SECUR/sprgjour.mac`
+**Тип:** `macro`
+**Размер:** 11 строк
+
+```rsl
+macro DepoKindSubHeader(Kind)
+   if ( Kind == depo_acc_active )
+      Rep.AddEmptyStr();
+      DP_AddPrintCell( Rep, " Счета депо мест хранения", 30, 0, "l:" + RepFontStyleTitel,_isapp, REP_ELEM_STR );
+      Rep.AddStr();
+   else 
+      Rep.AddEmptyStr();
+      DP_AddPrintCell( Rep, " Счета депо депонентов", 30, 0, "l:" + RepFontStyleTitel,_isapp, REP_ELEM_STR );
+      Rep.AddStr();
+   end;
+end;
+```
+
+---
+
+## Пример 25: `PrintLine_VA`
+
+**Источник:** `Mac/DLNG/dltkjrnl.mac`
+**Тип:** `macro`
+**Размер:** 84 строк
+
+```rsl
+macro PrintLine_VA( 
+                 StrNumber,                                 
+                 DealCode:string,                    
+                 Date1: string,                      
+                 DealKindName:string,                
+                 ContrShortName:string,              
+                 ClientShortName:string,             
+                 SfContrNumber:string,               
+                 IssShortName:string,                
+                 AvrKind:string,                     
+                 AvrSeries:string,                   
+                 PayISO:string,
+                 SumInNom:money,                    
+                 PayCCY:string,                      
+                 StateDate:string,                                      
+                 StateFactDate:string,               
+                 PayDate:string,                     
+                 PayFactDate:string,                 
+                 ReportKind:string,                  
+                 ReportNum:string,                   
+                 ReportDate:string                 
+                )
+
+   if( GetIdentProgram() == CodeFor("А") )
+      Rep.AddPrintCell(DealCode,        0, 0, "c");/*Номер сделки ДУ в системе внутр. учета */
+      Rep.AddPrintCell(date(Date1),     0, 0, "l");/*Дата заключения сделки*/
+      Rep.AddPrintCell("вне биржи",     0, 0, "l");/*Для сделок модуля УВ всегда "вне биржи"*/
+      Rep.AddPrintCell(DealKindName,    0, 0, "c");/*Вид сделки*/
+      Rep.AddPrintCell(ContrShortName,  0, 0, "l");/*сокращенное наименование контрагента*/
+      Rep.AddPrintCell(ClientShortName, 0, 0, "l");
+      Rep.AddPrintCell("",              0, 0, "l");/*№  поручения клиента*/
+      Rep.AddPrintCell(SfContrNumber,   0, 0, "l");
+      Rep.AddPrintCell(IssShortName,    0, 0, "l");
+      Rep.AddPrintCell(AvrKind,         0, 0, "c");
+      Rep.AddPrintCell("",              0, 0, "c");
+      Rep.AddPrintCell(AvrSeries,       0, 0, "c");/*серия № векселя*/
+      Rep.AddPrintCell("",              0, 0, "c");
+      Rep.AddPrintCell("",              0, 0, "c");
+      Rep.AddPrintCell("",              0, 0, "c");/*Цена -для сделок модуля УВ, не заполняется*/
+      Rep.AddPrintCell("",              0, 0, "c");/*Кол-во- не заполняется для векселей)*/
+      Rep.AddPrintCell(SumInNom,        0, 4, "c");/*Сумма сделки  - Для НЭЦБ цена каждого векселя по сделке*/
+      Rep.AddPrintCell(PayISO,          0, 0, "c");/*Для УВ - валюта цены каждого векселя по сделке*/
+      Rep.AddPrintCell(StateDate +  "  " +  StateFactDate,  0, 0, "l");
+      Rep.AddPrintCell(PayDate + "  " + PayFactDate,        0, 0, "l");
+      Rep.AddPrintCell(ReportKind + " № " + ReportNum, 0, 0, "l");
+      Rep.AddPrintCell(ReportDate,      0, 0, "c");
+      Rep.AddPrintCell("",              0, 0, "c");
+   else
+      Rep.AddPrintCell(StrNumber,       0, 0, "c");
+      Rep.AddPrintCell(DealCode,        0, 0, "c");
+      Rep.AddPrintCell(Date1,           0, 0, "l");
+      Rep.AddPrintCell("",              0, 0, "l");
+      Rep.AddPrintCell("",              0, 0, "l");
+      Rep.AddPrintCell("вне биржи",     0, 0, "l");
+      Rep.AddPrintCell(DealKindName,    0, 0, "c");
+      Rep.AddPrintCell(ContrShortName,  0, 0, "l");
+      Rep.AddPrintCell(ClientShortName, 0, 0, "l");
+      Rep.AddPrintCell("",              0, 0, "l");/*№  поручения клиента*/
+      Rep.AddPrintCell(SfContrNumber,   0, 0, "l");
+      Rep.AddPrintCell(IssShortName,    0, 0, "l");
+      Rep.AddPrintCell(AvrKind,         0, 0, "c");
+      Rep.AddPrintCell("",              0, 0, "c");/*Код ц/б - не заполняется*/
+      Rep.AddPrintCell(AvrSeries,       0, 0, "c");/*серия № векселя*/
+      Rep.AddPrintCell("",              0, 0, "c");/*Транш не заполняется*/
+      Rep.AddPrintCell("",              0, 0, "c");/*ISIN не заполняется*/
+      Rep.AddPrintCell(PayISO,          0, 0, "c");/*Валюта расчетов*/
+      Rep.AddPrintCell("",              0, 0, "c");/*Кол-во не заполняется*/
+      Rep.AddPrintCell("",              0, 0, "c");/*Цена не заполняется*/
+      Rep.AddPrintCell("",              0, 0, "c");/*Валюта Цены не заполняется*/
+      Rep.AddPrintCell(SumInNom,        0, 4, "c");/*Для УВ цена каждого векселя по сделке*/
+      Rep.AddPrintCell("",              0, 0, "c");/*Для УВ  не выводится*/
+      Rep.AddPrintCell(PayCCY,          0, 0, "c");/*валюта цены каждого векселя по сделке*/
+      Rep.AddPrintCell(StateDate ,      0, 0, "l");
+      Rep.AddPrintCell(StateFactDate,   0, 0, "l");
+      Rep.AddPrintCell(PayDate,         0, 0, "l");
+      Rep.AddPrintCell(PayFactDate,     0, 0, "l");
+      Rep.AddPrintCell(ReportKind,      0, 0, "l");
+      Rep.AddPrintCell(ReportNum,       0, 0, "l");
+      Rep.AddPrintCell(ReportDate,      0, 0, "c");
+      Rep.AddPrintCell("",              0, 0, "c");
+   end;
+ 
+   Rep.AddStr();
+END;
+```
+
+---
+
+## Пример 26: `BeginRepTab`
+
+**Источник:** `Mac/DLNG/dlclordcj.mac`
+**Тип:** `macro`
+**Размер:** 24 строк
+
+```rsl
+  MACRO BeginRepTab()
+    
+     m_Report.PrintFormatString( "\n#\n",
+                                "N1_A1" , m_Report.RepName());
+
+     m_Report.CopyAllSheetInTotalBook( null, false, "N1_TableHeader", 1 );
+
+     m_Report.RegisterTable( "N1_MainTable", TableHeader,
+                             "N1_D2",
+                             "N1_T1",
+                             "N1_M1",
+                             "N1_A2",
+                             "N1_A3",  
+                             "N1_A4",  
+                             "N1_D3", 
+                             "N1_A9", 
+                             "N1_A5",
+                             "N1_Fl",
+                             "N1_N1",
+                             "N1_S1",
+                             "N1_S2",
+                             "N1_A6",
+                             "N1_A7");      
+  END;
+```
+
+---
+
+## Пример 27: `createReport`
+
+**Источник:** `Mac/CELLS/chgrept_realt.mac`
+**Тип:** `macro`
+**Размер:** 29 строк
+
+```rsl
+macro createReport()  
+  ObjPrint.AddDoc("Доп_соглашение_риэлтор",
+    Номер_доп_согл,
+    Номер_договора,
+    Город, 
+    Инфо_по_заведующей, 
+    Наименование_клиента, 
+    Поверенный,
+    День_вып,Месяц_вып,Год_вып,
+    День_дог,Месяц_дог,Год_дог,
+    День_кон,Месяц_кон,Год_кон,
+    День1_нач,Месяц1_нач,Год1_нач,
+    День1_кон,Месяц1_кон,Год1_кон,
+    Первая_группа(0).ФИО, Первая_группа(0).Паспорт, Первая_группа(0).Выдан,
+    Первая_группа(1).ФИО, Первая_группа(1).Паспорт, Первая_группа(1).Выдан,
+    Первая_группа(2).ФИО, Первая_группа(2).Паспорт, Первая_группа(2).Выдан,
+    Первая_группа(3).ФИО, Первая_группа(3).Паспорт, Первая_группа(3).Выдан,
+    День2_нач,Месяц2_нач,Год2_нач,
+    День2_кон,Месяц2_кон,Год2_кон,
+    Вторая_группа(0).ФИО, Вторая_группа(0).Паспорт, Вторая_группа(0).Выдан,
+    Вторая_группа(1).ФИО, Вторая_группа(1).Паспорт, Вторая_группа(1).Выдан,
+    Вторая_группа(2).ФИО, Вторая_группа(2).Паспорт, Вторая_группа(2).Выдан,
+    Вторая_группа(3).ФИО, Вторая_группа(3).Паспорт, Вторая_группа(3).Выдан,
+    Почтовый_адрес_банка, {Bank_INN}, Счет_банка, {MFO_Bank}, {CORAC_Bank}, Телефоны_банка,
+    Данные_клиента
+  );
+
+  ObjPrint.CreateTemplateData();
+end;
+```
+
+---
+
+## Пример 28: `Блок`
+
+**Источник:** `Mac/DLNG/TRUST/tsdeals.mac`
+**Тип:** `block`
+**Размер:** 23 строк
+
+```rsl
+    CopyAllSheetInTotalBook( null, false, "N1_Head", 0 );
+  END;
+/*================================================================================================*/
+  PRIVATE MACRO PrintLine(A1, A2, A3, A4)
+     PrintTableLine( "N1_A1",     A1, null,
+                     "N1_A2",     A2, null,
+                     "N1_A3"+App, A3, null,
+                     "N1_A4"+App, A4, null
+                   );
+  END;
+/*================================================================================================*/
+  PRIVATE MACRO IsEXCH(gr, BrokerID):bool
+    if( IsEXCHANGE(gr) )
+      return true;
+    elif( IsOutEXCHANGE(gr) AND (BrokerID != -1) )
+      if( ВидСубъекта(BrokerID, PTK_MARKETPLASE) == true )
+        return true;
+      end;
+    end;
+    return false;
+  END;
+/*================================================================================================*/
+  PRIVATE MACRO ОпределитьПосредникаСделки( Deal )
+```
+
+---
+
+## Пример 29: `PrintReport`
+
+**Источник:** `Mac/Cb/sfrepacp.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+macro PrintReport( AllDprt, Dprt, Attr, Comiss, EndDate, TrnDate )
+  PrintHeader();
+
+  SfRep_PrintTop();
+
+  PrintParm( Dprt, Attr, Comiss, EndDate, TrnDate );
+
+  PrintContext( AllDprt, Dprt );
+end;
+```
+
+---
+
+## Пример 30: `BeginReport`
+
+**Источник:** `Mac/DLNG/SECUR/incbncom.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+  MACRO BeginReport()
+     m_Report.PrintHeader();
+     m_Report.RegisterTable("N1_MainTable", TableHeader,
+                            "N1_ID", "N1_SfContr", "N1_Contr", "N1_Kind", "N1_Period", "N1_Cur", "N1_Rur", 
+                            "N1_Sum", "N1_SumCorr", "N1_Note"
+                           );
+
+     m_Report.SetCellAutoSumma( null, "N1_Cur", "N1_Rur","N1_Sum","N1_SumCorr" );
+  END;
+```
+
+---
+
+## Пример 31: `PrintHead0`
+
+**Источник:** `Mac/DLNG/DV/opposrep.mac`
+**Тип:** `macro`
+**Размер:** 21 строк
+
+```rsl
+macro PrintHead0( BankClient:integer  )
+   var SheetName = ПолучитьКодФилиала( RepData.Department );
+   /*для каждого филиала своя вкладка*/
+   if( BankClient == BankAcc )
+      SheetName = SheetName + "_1";
+   else
+      SheetName = SheetName + "_2";
+   end;
+
+   if( RepData.FirstSheet )
+      Rep.AddNewSheetBreak( SheetName, Table );
+   else
+      RepData.FirstSheet = SheetName;
+   end;
+
+   Rep.AddPrintCell("Филиал: " + ПолучитьКодФилиала( RepData.Department ), Rep.GetHeaderWidth(), 0, "l:" + FontStyleTitel, REP_ELEM_STR);
+   Rep.AddEmptyStr();
+   Rep.AddPrintCell("Субрегистр внутреннего учета открытых позиций по фьючерсным контрактам и опционам", Rep.GetHeaderWidth(), 0, "c:" + FontStyleHead0, REP_ELEM_STR);
+   Rep.AddStr();
+   RepData.PrintDep = false;
+end;
+```
+
+---
+
+## Пример 32: `PrintHeader`
+
+**Источник:** `Mac/Cb/overacc.mac`
+**Тип:** `macro`
+**Размер:** 9 строк
+
+```rsl
+MACRO PrintHeader(Дата)
+[                                       Обработка счетов с овердрафтом
+                                                за #
+
+](Дата);
+[┌─┬───────────────────────┬────────────────────────────────────────────────────┐];
+[│О│      Номер счета      │ Результат                                          │];
+[├─┼───────────────────────┼────────────────────────────────────────────────────┤];
+END;
+```
+
+---
+
+## Пример 33: `Блок`
+
+**Источник:** `Mac/DLNG/TRUST/tsrealizreg_form.mac`
+**Тип:** `block`
+**Размер:** 14 строк
+
+```rsl
+  PRIVATE MACRO Init()
+     AddFieldProc( 0, PNFLD_TSREALIZREG_BEGDATE,          DL_PNFLD_BEGINDATE,        @DL_FldProc_BeginDate,   TsRealizRegData.BegDate ); 
+     AddFieldProc( 0, PNFLD_TSREALIZREG_ENDDATE,          DL_PNFLD_ENDDATE,          @DL_FldProc_EndDate,     TsRealizRegData.EndDate );
+     AddFieldProc( 0, PNFLD_TSREALIZREG_CLIENTCODE,       DL_PNFLD_CLIENT_NUM_OFBU,  @DL_FldProc_ClientNDFL,  TsRealizRegData.ClientCode );
+     AddFieldProc( 0, PNFLD_TSREALIZREG_CLIENTNAME,       DL_PNFLD_CLIENT_NAME_OFBU, @Default,                TsRealizRegData.ClientName );
+     AddFieldProc( 0, PNFLD_TSREALIZREG_CLIENTCONTR,      DL_PNFLD_CONTRACT_OFBU,    @DL_FldProc_ContractIDDU,TsRealizRegData.ClientContr ); 
+     AddFieldProc( 0, PNFLD_TSREALIZREG_ORCB,             DL_PNFLD_CHECKBOX,         @DLUSR_FldProc_ORCB,     TsRealizRegData.ORCB );
+     AddFieldProc( 0, PNFLD_TSREALIZREG_ORCB_EMISS,       H_ORCB_EMISS,              @DL_FldProc_CheckBox,    TsRealizRegData.ORCB_Emiss );
+     AddFieldProc( 0, PNFLD_TSREALIZREG_ORCB_DERIV,       H_ORCB_DERIV,              @DL_FldProc_CheckBox,    TsRealizRegData.ORCB_Deriv );
+     AddFieldProc( 0, PNFLD_TSREALIZREG_NO_ORCB,          DL_PNFLD_CHECKBOX,         @DLUSR_FldProc_NO_ORCB,  TsRealizRegData.NO_ORCB );
+     AddFieldProc( 0, PNFLD_TSREALIZREG_NO_ORCB_EMISS,    H_NO_ORCB_EMISS,           @DL_FldProc_CheckBox,    TsRealizRegData.NO_ORCB_Emiss );
+     AddFieldProc( 0, PNFLD_TSREALIZREG_NO_ORCB_NO_EMISS, H_NO_ORCB_NO_EMISS,        @DL_FldProc_CheckBox,    TsRealizRegData.NO_ORCB_NO_Emiss ); 
+     AddFieldProc( 0, PNFLD_TSREALIZREG_ISEXCEL,          DL_PNFLD_CHECKBOX,         @DL_FldProc_CheckBox,    TsRealizRegData.IsExcel );
+  END;
+```
+
+---
+
+## Пример 34: `BeginRepTab`
+
+**Источник:** `Mac/DLNG/TRUST/tsmtgain.mac`
+**Тип:** `macro`
+**Размер:** 23 строк
+
+```rsl
+  MACRO BeginRepTab()
+    
+     m_Report.PrintFormatString( ClientHeader,
+                                "N1_K0", m_Report.ClientName(),
+                                "N1_K1", m_Report.ClientContr(),
+                                "N1_K2", m_Report.TaxRate()
+                               );
+     m_Report.CopyAllSheetInTotalBook( null, false, "N1_TableHeader", 1 );
+
+     m_Report.RegisterTable( "N1_MainTable", TableHeader,
+                             "N1_A1",       
+                             "N1_A2",       
+                             "N1_A3",         
+                             "N1_A4",           
+                             "N1_A5",           
+                             "N1_A6",          
+                             "N1_A7",          
+                             "N1_A8",
+                             "N1_A9",
+                             "N1_A10",
+                             "N1_A11",
+                             "N1_A12");      
+  END;
+```
+
+---
+
+## Пример 35: `PrintCellTable`
+
+**Источник:** `Mac/DLNG/DEPO/dprdistr.mac`
+**Тип:** `macro`
+**Размер:** 6 строк
+
+```rsl
+macro PrintCellTable( Str, S_Size, Big )
+  if( (ValType(Big) != V_UNDEF) and Big )
+    DP_AddPrintCell( DivRep, Str, S_Size, DataCrp.Point, "r:" + FontStyleTitel );
+  else
+    DP_AddPrintCell( DivRep, Str, S_Size, DataCrp.Point, "r:" + FontStyleTitel1 );
+  end;
+```
+
+---
+
+## Пример 36: `printFooter`
+
+**Источник:** `Mac/DLNG/MMARK/mmrprorl.mac`
+**Тип:** `macro`
+**Размер:** 12 строк
+
+```rsl
+MACRO printFooter
+if (not flagXLS)
+[└──────────────────────┴───────────────────────────────┴───┴────────────────────┴──────────┴──────────┴──────┴──────────┴────────┼────────────────┼────────────────┼──┘];
+[                                                                                                                           Итого │################│################│   ]
+( g_req:r, g_com:r );
+[                                                                                                                                 └────────────────┴────────────────┘   ];
+[  ];
+[  ];
+else
+	Rep.SetValue_NameCell("T_B1", g_req );  
+	Rep.SetValue_NameCell("T_B2", g_com );  
+end;
+```
+
+---
+
+## Пример 37: `PrintCellTable`
+
+**Источник:** `Mac/DLNG/DEPO/dpnotdiv.mac`
+**Тип:** `macro`
+**Размер:** 6 строк
+
+```rsl
+macro PrintCellTable( Str ,t_point, Right )
+  if( ( ValType( Right ) != V_UNDEF ) and Right )
+    DP_AddPrintCell( DivRep, Str, 0, t_point, "r:" + FontStyleTitel );
+  else
+    DP_AddPrintCell( DivRep, Str, 0, t_point, "l:" + FontStyleTitel );
+  end;
+```
+
+---
+
+## Пример 38: `PrintHead0`
+
+**Источник:** `Mac/DLNG/TRUST/tsopposrep.mac`
+**Тип:** `macro`
+**Размер:** 21 строк
+
+```rsl
+macro PrintHead0( BankClient:integer  )
+   var SheetName = ПолучитьКодФилиала( RepData.Department );
+   /*для каждого филиала своя вкладка*/
+   if( BankClient == BankAcc )
+      SheetName = SheetName + "_1";
+   else
+      SheetName = SheetName + "_2";
+   end;
+
+   if( RepData.FirstSheet )
+      Rep.AddNewSheetBreak( SheetName, Table );
+   else
+      RepData.FirstSheet = SheetName;
+   end;
+
+   Rep.AddPrintCell("Филиал: " + ПолучитьКодФилиала( RepData.Department ), Rep.GetHeaderWidth(), 0, "l:" + FontStyleTitel, REP_ELEM_STR);
+   Rep.AddEmptyStr();
+   Rep.AddPrintCell("Субрегистр внутреннего учета открытых позиций по фьючерсным контрактам и опционам", Rep.GetHeaderWidth(), 0, "c:" + FontStyleHead0, REP_ELEM_STR);
+   Rep.AddStr();
+   RepData.PrintDep = false;
+end;
+```
+
+---
+
+## Пример 39: `printOneAvoirissection`
+
+**Источник:** `Mac/DLNG/DEPO/dpregown.mac`
+**Тип:** `macro`
+**Размер:** 50 строк
+
+```rsl
+macro printOneAvoirissection( FIIDfrom, Elem : Owners, condition_date )
+   var FIID, lsin, avoiriss, issue, code_currency, FaceValue, Quantity:double = 0.0, BurdenedQuantity:double = 0.0;
+   var point = AVOIRISS_SUM_PRECISION;
+   record fins("fininstr");
+
+   if ( Elem != null )
+     FIID = abs(Elem.FIID);
+     Quantity = double(Elem.Quantity);
+     BurdenedQuantity = double(Elem.BurdenedQuantity);
+   else
+     FIID = FIIDfrom;
+   end;
+
+   lsin = GetFICode( FIID, null, FICK_LSIN );
+   avoiriss = getAVOIRISS( FIID );
+   issue = getIssue( FIID );
+
+   if ( not ПолучитьФинИн( FIID, fins ) )
+     code_currency = GetFICode( fins.FaceValueFI, null, FICK_ISOSTRING );
+     point = fins.SumPrecision;
+
+     if(OwnerMaxPoint < point)
+       OwnerMaxPoint = point;
+     end;
+   else
+     code_currency = "";
+   end;
+
+   FaceValue = GetFaceValue(FIID, condition_date);
+
+   if ( Elem != null )
+     DP_AddPrintCell( Rep,  lsin, 15, 0, "l:" + RepFontStyleTitel + "ex_B(l)", is_ap, REP_ELEM_STR );
+   else
+     DP_AddPrintCell( Rep,  lsin, 15, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+   end;
+   DP_AddPrintCell( Rep,  " ", 1, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+   DP_AddPrintCell( Rep,  avoiriss, 20, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+   DP_AddPrintCell( Rep,  " ", 1, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+   DP_AddPrintCell( Rep,  issue, 5, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+   DP_AddPrintCell( Rep,  "  ", 2, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+   DP_AddPrintCell( Rep,  FaceValue, 19, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+   DP_AddPrintCell( Rep,  " ", 1, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+   DP_AddPrintCell( Rep,  code_currency, 3, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+   if ( Elem != null )
+     DP_AddPrintCell( Rep,  " ", GetLenTotal()-(15+1+20+1+5+2+19+1+3)+1, 0, "l:" + RepFontStyleTitel, is_ap, REP_ELEM_STR );
+     DP_AddPrintCell( Rep,  Quantity, 17, DP_GetPrecision(Quantity, point), "r:" + RepFontStyleTitel + "ex_B(rl)", is_ap, REP_ELEM_STR );
+     DP_AddPrintCell( Rep,  BurdenedQuantity, 19, DP_GetPrecision(BurdenedQuantity, point), "r:" + RepFontStyleTitel + "ex_B(rl)", is_ap, REP_ELEM_STR );
+   end;
+   Rep.AddStr();
+end;
+```
+
+---
+
+## Пример 40: `ПечатьКупонов`
+
+**Источник:** `Mac/DLNG/DEPO/dpavrfrm.mac`
+**Тип:** `macro`
+**Размер:** 21 строк
+
+```rsl
+macro ПечатьКупонов( НаборКупонов )
+    var i = 0;
+    Rep.AddEmptyStr();
+    while( i < НаборКупонов.Size )
+      if ( НаборКупонов[i].percent != 0 )
+        DP_AddPrintCell( Rep,  НаборКупонов[i].real_num, 0, 0, "l:" + RepFontStyleTitel );
+        DP_AddPrintCell( Rep,  НаборКупонов[i].p_date, 0, 0, "l:f:" + RepFontStyleTitel );
+        DP_AddPrintCell( Rep,  string(НаборКупонов[i].percent)+"%", 0, 0, "l:" + RepFontStyleTitel );
+        DP_AddPrintCell( Rep,  EMPTY_STR, 0, 0, "l:" + RepFontStyleTitel );
+        Rep.AddStr();
+      else
+        DP_AddPrintCell( Rep,  НаборКупонов[i].real_num, 0, 0, "l:" + RepFontStyleTitel );
+        DP_AddPrintCell( Rep,  НаборКупонов[i].p_date, 0, 0, "l:f:" + RepFontStyleTitel );
+        DP_AddPrintCell( Rep,  EMPTY_STR, 0, 0, "l:" + RepFontStyleTitel );
+        DP_AddPrintCell( Rep,  НаборКупонов[i].value, 0, 0, "l:" + RepFontStyleTitel );
+        Rep.AddStr();
+      end;
+      i = i + 1;
+    end;
+
+end;
+```
+
+---
